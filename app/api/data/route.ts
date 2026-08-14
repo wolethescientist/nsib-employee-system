@@ -6,26 +6,28 @@ const db = () => supabaseAdmin() as any
 
 async function dashboardData(user?: { role?: string; employeeId?: string | null }) {
   const client = db()
-  const [employees, courses, training, approvals, documents] = await Promise.all([
+  const [employees, courses, training, approvals, documents, assignmentEvents] = await Promise.all([
     client.from('employees').select('id, name, initials, role, unit, license, email, readiness, open_items:training_records(count)').eq('active', true).order('name'),
     client.from('courses').select('id, name, programme_type, renewal_cycle, owner_unit, required, training_records(count)').eq('active', true).order('name'),
     client.from('training_records').select('id, employee_id, course_id, priority, status, planned_date, completed_date, due_date, employees(name), courses(name, programme_type)').order('due_date', { ascending: true, nullsFirst: false }),
     client.from('approvals').select('id, employee_id, training_record_id, kind, status, created_at, employees(name), training_records(courses(name))').order('created_at', { ascending: false }),
     client.from('training_documents').select('id, training_record_id, file_name, review_status, created_at, training_records(employee_id, courses(name))').order('created_at', { ascending: false }),
+    client.from('audit_logs').select('id, entity_id, metadata, created_at').eq('action', 'training_assigned').order('created_at', { ascending: false }).limit(100),
   ])
-  for (const result of [employees, courses, training, approvals, documents]) if (result.error) throw result.error
+  for (const result of [employees, courses, training, approvals, documents, assignmentEvents]) if (result.error) throw result.error
   const records = training.data || []
   const mappedEmployees = (employees.data || []).map((item: any) => ({ ...item, open: records.filter((record: any) => record.employee_id === item.id && record.status !== 'Completed').length, tone: ['#d8753d', '#4b718c', '#65866d', '#88705d', '#9a6477'][Math.abs(String(item.id).charCodeAt(0)) % 5] }))
   const mappedCourses = (courses.data || []).map((item: any) => { const assigned = records.filter((record: any) => record.course_id === item.id); const completed = assigned.filter((record: any) => record.status === 'Completed').length; return { id: item.id, name: item.name, type: item.programme_type, cycle: item.renewal_cycle, owner: item.owner_unit, assigned: assigned.length, completion: assigned.length ? Math.round(completed / assigned.length * 100) : 0, required: item.required } })
-  const mappedTraining = records.map((item: any) => ({ id: item.id, courseId: item.course_id, course: item.courses?.name, type: item.courses?.programme_type, priority: item.priority, status: item.status, due: item.due_date, owner: item.employees?.name, ownerId: item.employee_id, plannedDate: item.planned_date, completedDate: item.completed_date }))
+  const mappedTraining = records.map((item: any) => ({ id: item.id, courseId: item.course_id, course: item.courses?.name, type: item.courses?.programme_type, priority: item.priority, status: item.status, due: item.due_date, owner: item.employees?.name, ownerId: item.employee_id, plannedDate: item.planned_date, completedDate: item.completed_date, createdAt: item.created_at }))
   const mappedApprovals = (approvals.data || []).map((item: any) => ({ id: item.id, employee: item.employees?.name, item: item.training_records?.courses?.name || item.kind, kind: item.kind, submitted: new Date(item.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), status: item.status }))
   const mappedDocuments = (documents.data || []).map((item: any) => ({ id: item.id, trainingRecordId: item.training_record_id, fileName: item.file_name, reviewStatus: item.review_status, createdAt: item.created_at, employeeId: item.training_records?.employee_id, course: item.training_records?.courses?.name }))
+  const mappedAssignmentEvents = (assignmentEvents.data || []).map((item: any) => { const record = records.find((trainingRecord: any) => trainingRecord.id === item.entity_id); return record ? { id: item.id, trainingRecordId: record.id, employeeId: record.employee_id, course: record.courses?.name, createdAt: item.created_at } : null }).filter(Boolean)
   if (user?.role === 'employee') {
     const ownTraining = mappedTraining.filter((record: any) => record.ownerId === user.employeeId)
     const ownCourseIds = new Set(ownTraining.map((record: any) => record.courseId))
-    return { employees: mappedEmployees.filter((employee: any) => employee.id === user.employeeId), courses: mappedCourses.filter((course: any) => ownCourseIds.has(course.id)), training: ownTraining, approvals: [], documents: mappedDocuments.filter((document: any) => document.employeeId === user.employeeId) }
+    return { employees: mappedEmployees.filter((employee: any) => employee.id === user.employeeId), courses: mappedCourses.filter((course: any) => ownCourseIds.has(course.id)), training: ownTraining, approvals: [], documents: mappedDocuments.filter((document: any) => document.employeeId === user.employeeId), assignmentNotifications: mappedAssignmentEvents.filter((event: any) => event.employeeId === user.employeeId) }
   }
-  return { employees: mappedEmployees, courses: mappedCourses, training: mappedTraining, approvals: mappedApprovals, documents: mappedDocuments }
+  return { employees: mappedEmployees, courses: mappedCourses, training: mappedTraining, approvals: mappedApprovals, documents: mappedDocuments, assignmentNotifications: mappedAssignmentEvents }
 }
 
 export async function GET() {

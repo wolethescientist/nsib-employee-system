@@ -14,6 +14,7 @@ export type EmployeeRow = {
   division: string | null
   department: string | null
   profession: string | null
+  personnel_level: string | null
   training_profile: string | null
   years_experience: number | null
   qualifications: string | null
@@ -23,7 +24,7 @@ export type EmployeeRow = {
 }
 
 export const EMPLOYEE_COLUMNS =
-  'id, sheet_key, name, initials, designation, division, department, profession, training_profile, years_experience, qualifications, license, email, photo_path'
+  'id, sheet_key, name, initials, designation, division, department, profession, personnel_level, training_profile, years_experience, qualifications, license, email, photo_path'
 
 export const RECORD_COLUMNS =
   'id, employee_id, course_id, applicable, priority, status, planned_date, planned_year, due_date, completed_date, completed_year, comments, review_comment, updated_at'
@@ -65,6 +66,7 @@ export function mapEmployee(row: EmployeeRow, photoUrl?: string) {
     division: row.division,
     department: row.department,
     profession: row.profession,
+    personnelLevel: row.personnel_level,
     trainingProfile: row.training_profile,
     yearsExperience: row.years_experience,
     // The workbook keeps qualifications as one comma-separated string.
@@ -161,6 +163,73 @@ export function mapRequest(row: any) {
     decisionComment: row.decision_comment,
     assignedRecordId: row.assigned_record_id,
     createdAt: row.created_at,
+  }
+}
+
+export const ANNUAL_PLAN_COLUMNS =
+  'id, employee_id, year, serial, course_title, institution, training_dates, priority, training_type, cost, currency, delivery, dg_status, dg_institution, dg_delivery, dg_comment, dg_decided_at'
+
+export function mapAnnualItem(row: any) {
+  return {
+    id: row.id,
+    employeeId: row.employee_id,
+    employee: row.employees?.name ?? null,
+    year: row.year,
+    serial: row.serial,
+    courseTitle: row.course_title,
+    institution: row.institution,
+    trainingDates: row.training_dates,
+    priority: row.priority,
+    trainingType: row.training_type,
+    cost: row.cost === null || row.cost === undefined ? null : Number(row.cost),
+    currency: row.currency,
+    delivery: row.delivery,
+    dgStatus: row.dg_status,
+    dgInstitution: row.dg_institution,
+    dgDelivery: row.dg_delivery,
+    dgComment: row.dg_comment,
+    dgDecidedAt: row.dg_decided_at,
+  }
+}
+
+export function mapCredential(row: any) {
+  return {
+    id: row.id,
+    employeeId: row.employee_id,
+    title: row.title,
+    institution: row.institution,
+    yearObtained: row.year_obtained,
+    fileName: row.file_name,
+    createdAt: row.created_at,
+  }
+}
+
+const mapOjtTask = (row: any) => ({
+  id: row.id,
+  chartId: row.chart_id,
+  task: row.task,
+  source: row.source,
+  sortOrder: row.sort_order,
+  level1By: row.level1_by,
+  level1At: row.level1_at,
+  level2By: row.level2_by,
+  level2At: row.level2_at,
+  level3By: row.level3_by,
+  level3At: row.level3_at,
+  comment: row.comment,
+})
+
+export function mapOjtChart(row: any) {
+  return {
+    id: row.id,
+    employeeId: row.employee_id,
+    title: row.title,
+    gradeLevel: row.grade_level,
+    supervisor: row.supervisor,
+    status: row.status,
+    createdAt: row.created_at,
+    completedAt: row.completed_at,
+    tasks: (row.ojt_tasks || []).map(mapOjtTask).sort((a: any, b: any) => a.sortOrder - b.sortOrder),
   }
 }
 

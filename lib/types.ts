@@ -1,4 +1,4 @@
-import type { DisplayStatus, Priority, ProgrammeType, StoredStatus } from '@/lib/programme'
+import type { DgDecision, DisplayStatus, Priority, ProgrammeType, StoredStatus } from '@/lib/programme'
 
 export type Employee = {
   id: string
@@ -9,6 +9,7 @@ export type Employee = {
   division: string | null
   department: string | null
   profession: string | null
+  personnelLevel: string | null
   trainingProfile: string | null
   yearsExperience: number | null
   qualifications: string[]
@@ -88,6 +89,66 @@ export type TrainingRequest = {
   createdAt: string
 }
 
+/** One line of the annual training plan sheet, plus the DG's verdict on it. */
+export type AnnualPlanItem = {
+  id: string
+  employeeId: string
+  employee: string | null
+  year: number
+  serial: number
+  courseTitle: string
+  institution: string | null
+  trainingDates: string | null
+  priority: Priority | null
+  trainingType: string | null
+  cost: number | null
+  currency: string
+  delivery: string
+  dgStatus: DgDecision
+  dgInstitution: string | null
+  dgDelivery: string | null
+  dgComment: string | null
+  dgDecidedAt: string | null
+}
+
+/** A qualification certificate a member of staff chose to upload. Never required. */
+export type StaffCredential = {
+  id: string
+  employeeId: string
+  title: string
+  institution: string | null
+  yearObtained: number | null
+  fileName: string
+  createdAt: string
+}
+
+export type OjtTask = {
+  id: string
+  chartId: string
+  task: string
+  source: string | null
+  sortOrder: number
+  level1By: string | null
+  level1At: string | null
+  level2By: string | null
+  level2At: string | null
+  level3By: string | null
+  level3At: string | null
+  comment: string | null
+}
+
+export type OjtChart = {
+  id: string
+  employeeId: string
+  title: string
+  gradeLevel: string | null
+  supervisor: string | null
+  status: 'Open' | 'Completed'
+  createdAt: string
+  completedAt: string | null
+  tasks: OjtTask[]
+}
+
 export type Directory = {
   me: { id: string; employeeId: string | null; email: string; role: string }
   programmeTypes: ProgrammeType[]
@@ -95,6 +156,8 @@ export type Directory = {
   courses: Course[]
   documents: CertificateDocument[]
   requests: TrainingRequest[]
+  annualPlan: AnnualPlanItem[]
+  planYears: number[]
 }
 
 export type EmployeePlan = {
@@ -104,4 +167,7 @@ export type EmployeePlan = {
   records: PlanRow[]
   documents: CertificateDocument[]
   requests: TrainingRequest[]
+  annualPlan: AnnualPlanItem[]
+  credentials: StaffCredential[]
+  ojtCharts: OjtChart[]
 }

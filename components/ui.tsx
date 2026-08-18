@@ -1,49 +1,89 @@
 'use client'
 
 import { ReactNode, useEffect, useState } from 'react'
-import { PRIORITY_LABEL, PROFESSIONS, type DisplayStatus, type Priority } from '@/lib/programme'
+import { PERSONNEL_LEVELS, PRIORITY_LABEL, PROFESSIONS, type DgDecision, type DisplayStatus, type Priority } from '@/lib/programme'
 
 const OTHER = '__other__'
 
 /**
- * Professional background: a dropdown of the usual ones, plus a box to type
- * anything the list does not cover. A stored value that is not in the list
- * (someone typed it last time) reopens on "Other" with the text filled in, so
- * editing a record never silently loses what was recorded.
+ * A dropdown of the usual answers plus a box to type anything the list does not
+ * cover. A stored value that is not in the list (someone typed it last time)
+ * reopens on "Other" with the text filled in, so editing a record never
+ * silently loses what was recorded.
  *
- * Submits a single `profession` field either way.
+ * Submits a single field under `name` either way.
  */
-export function ProfessionField({ value }: { value?: string | null }) {
-  const known = value ? PROFESSIONS.includes(value) : true
+export function SuggestField({
+  name,
+  label,
+  options,
+  hint,
+  placeholder,
+  value,
+}: {
+  name: string
+  label: string
+  options: string[]
+  hint?: string
+  placeholder?: string
+  value?: string | null
+}) {
+  const known = value ? options.includes(value) : true
   const [choice, setChoice] = useState(value ? (known ? value : OTHER) : '')
   const [typed, setTyped] = useState(known ? '' : value || '')
 
   return (
     <>
       <label>
-        Profession
+        {label}
         <select value={choice} onChange={event => setChoice(event.target.value)}>
           <option value="">Not recorded</option>
-          {PROFESSIONS.map(profession => (
-            <option key={profession} value={profession}>
-              {profession}
+          {options.map(option => (
+            <option key={option} value={option}>
+              {option}
             </option>
           ))}
           <option value={OTHER}>Other — type it below</option>
         </select>
-        <small className="field-hint">Pilot, Aeronautical Engineer, Air Traffic Controller, Seafarer and so on.</small>
+        {hint && <small className="field-hint">{hint}</small>}
       </label>
 
       {choice === OTHER ? (
         <label>
-          Profession (typed)
-          <input name="profession" value={typed} onChange={event => setTyped(event.target.value)} placeholder="e.g. Naval Architect" autoFocus required />
-          <small className="field-hint">Used when the profession is not in the list above.</small>
+          {label} (typed)
+          <input name={name} value={typed} onChange={event => setTyped(event.target.value)} placeholder={placeholder} autoFocus required />
+          <small className="field-hint">Used when the answer is not in the list above.</small>
         </label>
       ) : (
-        <input type="hidden" name="profession" value={choice} />
+        <input type="hidden" name={name} value={choice} />
       )}
     </>
+  )
+}
+
+export function ProfessionField({ value }: { value?: string | null }) {
+  return (
+    <SuggestField
+      name="profession"
+      label="Profession"
+      options={PROFESSIONS}
+      value={value}
+      placeholder="e.g. Naval Architect"
+      hint="Pilot, Aeronautical Engineer, Air Traffic Controller, Seafarer and so on."
+    />
+  )
+}
+
+export function PersonnelLevelField({ value }: { value?: string | null }) {
+  return (
+    <SuggestField
+      name="personnelLevel"
+      label="Personnel level"
+      options={PERSONNEL_LEVELS}
+      value={value}
+      placeholder="e.g. Assistant Chief Investigator"
+      hint="A Trainee is who an OJT progress chart is opened for; a DTI signs one off."
+    />
   )
 }
 
@@ -64,6 +104,10 @@ const ICONS: Record<string, string> = {
   back: 'm15 18-6-6 6-6',
   edit: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
   bell: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
+  calendar: 'M7 3v4M17 3v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z',
+  award: 'M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.2 13.6 7 22l5-3 5 3-1.2-8.4',
+  trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M9 7V4h6v3',
+  plus: 'M12 5v14M5 12h14',
 }
 
 export function Icon({ name, size = 16 }: { name: keyof typeof ICONS | string; size?: number }) {
@@ -100,6 +144,17 @@ export function PriorityPill({ priority }: { priority?: Priority | null }) {
       {priority}
     </span>
   )
+}
+
+const DG_LABEL: Record<DgDecision, string> = {
+  Pending: 'Awaiting DG',
+  Approved: 'Approved',
+  Rejected: 'Rejected',
+  Amended: 'Amended by DG',
+}
+
+export function DgPill({ status }: { status: DgDecision }) {
+  return <span className={`pill dg-${status.toLowerCase()}`}>{DG_LABEL[status]}</span>
 }
 
 export function Avatar({ name, initials, tone, photoUrl, size = 44 }: { name: string; initials: string; tone: string; photoUrl?: string | null; size?: number }) {

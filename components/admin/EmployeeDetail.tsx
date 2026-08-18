@@ -3,11 +3,13 @@
 import { FormEvent, useState } from 'react'
 import { IdpHeader } from '@/components/IdpHeader'
 import { ProgrammePlan } from '@/components/ProgrammePlan'
-import { Empty, Icon, Modal, ProfessionField, StatusPill } from '@/components/ui'
+import { Credentials } from '@/components/Credentials'
+import { OjtCharts } from '@/components/OjtCharts'
+import { DgPill, Empty, Icon, Modal, PersonnelLevelField, PriorityPill, ProfessionField, StatusPill } from '@/components/ui'
 import { daysToDeadline, formatMoney, formatWhen } from '@/lib/programme'
 import type { EmployeePlan, PlanRow } from '@/lib/types'
 
-type Save = (action: string, payload: Record<string, unknown>) => Promise<void>
+type Save = (action: string, payload: Record<string, unknown>, message?: string) => Promise<void>
 
 export function EmployeeDetail({
   plan,
@@ -17,6 +19,7 @@ export function EmployeeDetail({
   onUploadPhoto,
   onExport,
   onRaiseRequest,
+  onReload,
 }: {
   plan: EmployeePlan
   readOnly: boolean
@@ -25,6 +28,8 @@ export function EmployeeDetail({
   onUploadPhoto: (file: File) => Promise<void>
   onExport: () => void
   onRaiseRequest: () => void
+  /** Credentials are uploaded straight to their own endpoint, so the page has to be told to refetch. */
+  onReload: (message: string) => Promise<void>
 }) {
   const [editing, setEditing] = useState<PlanRow | null>(null)
   const [editingProfile, setEditingProfile] = useState(false)
@@ -137,6 +142,83 @@ export function EmployeeDetail({
           </div>
         </section>
       )}
+
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <div className="eyebrow">Annual training plan</div>
+            <h2>Courses planned for this member of staff</h2>
+            <p className="panel-note">The year&rsquo;s plan as it went to the Director General, newest year first.</p>
+          </div>
+          <span className="queue-count">{plan.annualPlan.length}</span>
+        </div>
+        {plan.annualPlan.length ? (
+          <div className="table-scroll">
+            <div className="annual-table annual-table-compact">
+              <div className="annual-row annual-head">
+                <span>Year</span>
+                <span>Course title</span>
+                <span>Institution / country</span>
+                <span>Date</span>
+                <span>Pri.</span>
+                <span>Training type</span>
+                <span>Course fee</span>
+                <span>Director General</span>
+              </div>
+              {plan.annualPlan.map(line => (
+                <div className={`annual-row dg-row-${line.dgStatus.toLowerCase()}`} key={line.id}>
+                  <span className="annual-no">{line.year}</span>
+                  <span className="annual-course">
+                    <strong>{line.courseTitle}</strong>
+                    {line.delivery === 'In-house' && <small className="tag tag-quiet">In-house</small>}
+                  </span>
+                  <span className="annual-where">{line.dgStatus === 'Amended' && line.dgInstitution ? <><s>{line.institution || '—'}</s><b>{line.dgInstitution}</b></> : line.institution || '—'}</span>
+                  <span className="annual-when">{line.trainingDates || '—'}</span>
+                  <span>
+                    <PriorityPill priority={line.priority} />
+                  </span>
+                  <span className="annual-type">{line.trainingType || '—'}</span>
+                  <span className="annual-cost">{formatMoney(line.cost, line.currency)}</span>
+                  <span className="annual-dg">
+                    <DgPill status={line.dgStatus} />
+                    {line.dgComment && <small className="annual-dg-comment">&ldquo;{line.dgComment}&rdquo;</small>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <Empty title="Not on any annual plan yet" detail="Add them from the Annual plan section." />
+        )}
+      </section>
+
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <div className="eyebrow">On-the-job training</div>
+            <h2>OJT progress chart</h2>
+            <p className="panel-note">Each task is signed off at three levels: I discuss, II observe and assist, III perform.</p>
+          </div>
+        </div>
+        <OjtCharts
+          charts={plan.ojtCharts}
+          employeeName={plan.employee.name}
+          canSign={!readOnly}
+          onSave={(action, payload, message) => onSave(action, { employeeId: plan.employee.id, ...payload }, message)}
+        />
+      </section>
+
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <div className="eyebrow">Credentials</div>
+            <h2>Qualification certificates</h2>
+            <p className="panel-note">Optional. Degrees, diplomas and licences this member of staff has uploaded.</p>
+          </div>
+          <span className="queue-count">{plan.credentials.length}</span>
+        </div>
+        <Credentials credentials={plan.credentials} employeeId={plan.employee.id} canUpload={!readOnly} onChanged={onReload} />
+      </section>
 
       {editing && (
         <RecordEditor
@@ -383,6 +465,7 @@ function ProfileEditor({ plan, onClose, onSave }: { plan: EmployeePlan; onClose:
             <input name="designation" defaultValue={employee.designation ?? ''} />
           </label>
           <ProfessionField value={employee.profession} />
+          <PersonnelLevelField value={employee.personnelLevel} />
           <label>
             Licence number
             <input name="license" defaultValue={employee.license ?? ''} placeholder="e.g. 2470" />

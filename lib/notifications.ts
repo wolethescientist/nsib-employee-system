@@ -3,7 +3,7 @@
 // in localStorage per signed-in user, which is enough for "don't show me that
 // popup again" without a schema change.
 import { daysToDeadline, formatMoney, formatWhen } from '@/lib/programme'
-import type { CertificateDocument, Directory, EmployeePlan, TrainingRequest } from '@/lib/types'
+import type { CertificateDocument, Directory, EmployeePlan } from '@/lib/types'
 
 export type NoticeTone = 'action' | 'good' | 'warn'
 
@@ -63,26 +63,71 @@ export function adminNotices(directory: Directory): Notice[] {
     }
   }
 
+  // What the DG has sent back on the annual plan is the training team's work.
+  for (const line of directory.annualPlan) {
+    if (line.dgStatus === 'Amended') {
+      notices.push({
+        id: `amended-${line.id}-${line.dgDecidedAt ?? ''}`,
+        tone: 'action',
+        icon: 'stamp',
+        title: 'The Director General suggested a change',
+        detail: `${line.courseTitle} for ${line.employee || 'staff'} — ${[line.dgInstitution && `move it to ${line.dgInstitution}`, line.dgDelivery && `deliver it ${line.dgDelivery.toLowerCase()}`, line.dgComment && `“${line.dgComment}”`]
+          .filter(Boolean)
+          .join(', ')}`,
+        section: 'annual',
+        when: line.dgDecidedAt,
+      })
+    }
+    if (line.dgStatus === 'Rejected') {
+      notices.push({
+        id: `planrejected-${line.id}-${line.dgDecidedAt ?? ''}`,
+        tone: 'warn',
+        icon: 'alert',
+        title: 'The Director General rejected a course',
+        detail: `${line.courseTitle} for ${line.employee || 'staff'}${line.dgComment ? ` — “${line.dgComment}”` : ''}`,
+        section: 'annual',
+        when: line.dgDecidedAt,
+      })
+    }
+  }
+
   return sort(notices)
 }
 
-/** The DG: requests waiting on a signature, and nothing else. */
-export function directorNotices(requests: TrainingRequest[]): Notice[] {
-  return sort(
-    requests
-      .filter(request => request.status === 'Pending')
-      .map(request => ({
-        id: `sign-${request.id}`,
-        tone: 'action' as const,
-        icon: 'stamp',
-        title: 'A training request needs your signature',
-        detail: `${request.courseTitle} for ${request.employee || 'staff'} — ${formatMoney(request.cost, request.currency)}${
-          request.travel === 'International' ? ', international travel' : ''
-        }`,
-        section: 'requests',
-        when: request.createdAt,
-      })),
-  )
+/** The DG: requests waiting on a signature, and the year's plan awaiting his column. */
+export function directorNotices(directory: Directory): Notice[] {
+  const notices: Notice[] = directory.requests
+    .filter(request => request.status === 'Pending')
+    .map(request => ({
+      id: `sign-${request.id}`,
+      tone: 'action' as const,
+      icon: 'stamp',
+      title: 'A training request needs your signature',
+      detail: `${request.courseTitle} for ${request.employee || 'staff'} — ${formatMoney(request.cost, request.currency)}${
+        request.travel === 'International' ? ', international travel' : ''
+      }`,
+      section: 'requests',
+      when: request.createdAt,
+    }))
+
+  // The annual plan arrives a year at a time, so one notice per year rather than
+  // one per line — sixty lines of the 2026 plan is a queue, not sixty alerts.
+  const pendingByYear = new Map<number, number>()
+  for (const line of directory.annualPlan) {
+    if (line.dgStatus === 'Pending') pendingByYear.set(line.year, (pendingByYear.get(line.year) || 0) + 1)
+  }
+  for (const [year, count] of Array.from(pendingByYear).sort((a, b) => b[0] - a[0])) {
+    notices.push({
+      id: `plan-${year}-${count}`,
+      tone: 'action',
+      icon: 'calendar',
+      title: `The ${year} training plan is waiting on you`,
+      detail: `${count} ${count === 1 ? 'course has' : 'courses have'} not been accepted, rejected or amended yet.`,
+      section: 'annual',
+    })
+  }
+
+  return sort(notices)
 }
 
 /** A member of staff: what has been given to them, and what came back. */

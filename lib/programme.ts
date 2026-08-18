@@ -160,3 +160,32 @@ export function toneFor(key: string): string {
   for (let index = 0; index < key.length; index += 1) hash = (hash * 31 + key.charCodeAt(index)) >>> 0
   return TONES[hash % TONES.length]
 }
+
+/**
+ * Where a member of staff sits in the training hierarchy. A Trainee is who an
+ * OJT progress chart is opened for; a DTI (Designated Training Instructor) is
+ * who signs one off. Free text like profession — the form offers these and a
+ * box for anything the list misses.
+ */
+export const PERSONNEL_LEVELS = [
+  'Trainee',
+  'Investigator',
+  'Senior Investigator',
+  'Principal Investigator',
+  'DTI (Designated Training Instructor)',
+  'Head of Unit',
+  'Deputy Director',
+  'Director',
+  'Director General',
+]
+
+/** The annual plan's "TRAINING TYPE" column, as the sheet spells it. */
+export const TRAINING_TYPES = ['Initial', 'OJT', 'Basic', 'Advance', 'Specialize', 'Specialty', 'Additional', 'Recurrent']
+
+/** How the course is delivered — the DG's "an in-house expert can do this". */
+export const DELIVERY_MODES = ['External', 'In-house']
+
+export const CURRENCIES = ['NGN', 'USD', 'GBP', 'EUR']
+
+/** The Director General's verdict on one line of somebody's annual plan. */
+export type DgDecision = 'Pending' | 'Approved' | 'Rejected' | 'Amended'

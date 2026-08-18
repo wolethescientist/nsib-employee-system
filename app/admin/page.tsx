@@ -7,6 +7,7 @@ import { EmployeeDirectory } from '@/components/admin/EmployeeDirectory'
 import { EmployeeDetail } from '@/components/admin/EmployeeDetail'
 import { CertificateQueue } from '@/components/admin/CertificateQueue'
 import { RequestsBoard } from '@/components/admin/RequestsBoard'
+import { AnnualPlan } from '@/components/admin/AnnualPlan'
 import { AddEmployee, Catalogue, Overview } from '@/components/admin/Sections'
 import { ExportDialog } from '@/components/admin/ExportDialog'
 import { Notifications } from '@/components/Notifications'
@@ -18,6 +19,7 @@ import type { Directory, EmployeePlan } from '@/lib/types'
 const SECTION_TITLE: Record<string, string> = {
   overview: 'Overview',
   employees: 'Staff records',
+  annual: 'Annual training plan',
   certificates: 'Certificate verification',
   requests: 'Training requests',
   catalogue: 'Course catalogue',
@@ -100,9 +102,14 @@ export default function AdminConsole() {
 
   const pendingCertificates = directory.documents.filter(document => document.reviewStatus === 'Pending').length
   const pendingRequests = directory.requests.filter(request => request.status === 'Pending').length
+  // The DG's queue on the annual plan; for the training team it is his amendments
+  // waiting to be taken onto the plan.
+  const pendingPlanLines = directory.annualPlan.filter(line => line.dgStatus === 'Pending').length
+  const amendedPlanLines = directory.annualPlan.filter(line => line.dgStatus === 'Amended').length
   const nav: NavItem[] = [
     { key: 'overview', label: 'Overview', icon: 'chart' },
     { key: 'employees', label: 'Staff records', icon: 'people' },
+    { key: 'annual', label: 'Annual plan', icon: 'calendar', badge: readOnly ? pendingPlanLines : amendedPlanLines },
     { key: 'certificates', label: 'Certificates', icon: 'catalogue', badge: readOnly ? 0 : pendingCertificates },
     { key: 'requests', label: readOnly ? 'For my signature' : 'DG requests', icon: 'stamp', badge: pendingRequests },
     { key: 'catalogue', label: 'Course catalogue', icon: 'plan' },
@@ -110,7 +117,7 @@ export default function AdminConsole() {
 
   const accountName = readOnly ? 'Director General' : 'Training & Standards'
   // The DG only ever acts on requests; the training team acts on everything else.
-  const notices = readOnly ? directorNotices(directory.requests) : adminNotices(directory)
+  const notices = readOnly ? directorNotices(directory) : adminNotices(directory)
 
   return (
     <>
@@ -124,7 +131,11 @@ export default function AdminConsole() {
         }}
         title={plan && section === 'employees' ? plan.employee.name : SECTION_TITLE[section]}
         subtitle={
-          section === 'employees' && !plan
+          section === 'annual'
+            ? readOnly
+              ? 'Every course planned for the year, with your decision beside each one. Accept it, reject it, or suggest a change — a different country, or an in-house expert.'
+              : 'The year’s plan as it goes to the Director General: who, what course, where, when and how much.'
+            : section === 'employees' && !plan
             ? 'Every member of staff, their photograph and their development plan. Select someone to open their full record.'
             : undefined
         }
@@ -154,14 +165,31 @@ export default function AdminConsole() {
       >
         {section === 'overview' && <Overview employees={directory.employees} documents={directory.documents} requests={directory.requests} onGo={setSection} />}
 
+        {section === 'annual' && (
+          <AnnualPlan
+            items={directory.annualPlan}
+            years={directory.planYears}
+            employees={directory.employees}
+            role={role}
+            onSave={async (action, payload, message) => {
+              await save(action, payload, message)
+            }}
+          />
+        )}
+
         {section === 'employees' &&
           (plan ? (
             <EmployeeDetail
               plan={plan}
               readOnly={readOnly}
               onBack={() => setPlan(null)}
-              onSave={async (action, payload) => {
-                await save(action, payload, 'Saved.')
+              onSave={async (action, payload, message) => {
+                await save(action, payload, message || 'Saved.')
+              }}
+              onReload={async message => {
+                await loadDirectory()
+                setPlan(await getJson<EmployeePlan>(`/api/employees/${plan.employee.id}`))
+                notify(message)
               }}
               onUploadPhoto={async file => {
                 const form = new FormData()

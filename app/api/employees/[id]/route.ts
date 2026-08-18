@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import {
+  ANNUAL_PLAN_COLUMNS,
   EMPLOYEE_COLUMNS,
   RECORD_COLUMNS,
   canSeeEveryone,
   db,
+  mapAnnualItem,
+  mapCredential,
   mapDocument,
   mapEmployee,
+  mapOjtChart,
   mapRecord,
   mapRequest,
   signPhotos,
@@ -28,7 +32,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 
   try {
     const client = db()
-    const [employee, records, documents, requests] = await Promise.all([
+    const [employee, records, documents, requests, annualPlan, credentials, ojtCharts] = await Promise.all([
       client.from('employees').select(EMPLOYEE_COLUMNS).eq('id', employeeId).maybeSingle(),
       client
         .from('training_records')
@@ -41,8 +45,15 @@ export async function GET(_request: Request, { params }: { params: { id: string 
         .eq('training_records.employee_id', employeeId)
         .order('created_at', { ascending: false }),
       client.from('training_requests').select('*, employees(name)').eq('employee_id', employeeId).order('created_at', { ascending: false }),
+      client.from('annual_plan_items').select(ANNUAL_PLAN_COLUMNS).eq('employee_id', employeeId).order('year', { ascending: false }).order('serial'),
+      client
+        .from('staff_credentials')
+        .select('id, employee_id, title, institution, year_obtained, file_name, created_at')
+        .eq('employee_id', employeeId)
+        .order('year_obtained', { ascending: false, nullsFirst: false }),
+      client.from('ojt_charts').select('*, ojt_tasks(*)').eq('employee_id', employeeId).order('created_at', { ascending: false }),
     ])
-    for (const result of [employee, records, documents, requests]) if (result.error) throw result.error
+    for (const result of [employee, records, documents, requests, annualPlan, credentials, ojtCharts]) if (result.error) throw result.error
     if (!employee.data) return NextResponse.json({ error: 'Employee not found.' }, { status: 404 })
 
     const photos = await signPhotos([employee.data.photo_path])
@@ -55,6 +66,9 @@ export async function GET(_request: Request, { params }: { params: { id: string 
       records: mapped,
       documents: (documents.data || []).map(mapDocument),
       requests: (requests.data || []).map(mapRequest),
+      annualPlan: (annualPlan.data || []).map(mapAnnualItem),
+      credentials: (credentials.data || []).map(mapCredential),
+      ojtCharts: (ojtCharts.data || []).map(mapOjtChart),
     })
   } catch (error) {
     console.error(error)

@@ -4,7 +4,9 @@ import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { Shell, type NavItem } from '@/components/Shell'
 import { IdpHeader } from '@/components/IdpHeader'
 import { ProgrammePlan } from '@/components/ProgrammePlan'
-import { Empty, Icon, Modal, StatusPill, Toast } from '@/components/ui'
+import { Credentials } from '@/components/Credentials'
+import { OjtCharts } from '@/components/OjtCharts'
+import { DgPill, Empty, Icon, Modal, PriorityPill, StatusPill, Toast } from '@/components/ui'
 import { daysToDeadline, formatMoney, formatWhen } from '@/lib/programme'
 import { downloadCsv, getJson, postForm } from '@/lib/client'
 import { Notifications } from '@/components/Notifications'
@@ -13,9 +15,21 @@ import type { CertificateDocument, EmployeePlan, PlanRow } from '@/lib/types'
 
 const NAV: NavItem[] = [
   { key: 'plan', label: 'My plan', icon: 'plan' },
+  { key: 'annual', label: 'My training year', icon: 'calendar' },
   { key: 'programmes', label: 'All programmes', icon: 'catalogue' },
+  { key: 'ojt', label: 'My OJT chart', icon: 'check' },
+  { key: 'qualifications', label: 'My qualifications', icon: 'award' },
   { key: 'requests', label: 'My requests', icon: 'stamp' },
 ]
+
+const TITLE: Record<string, string> = {
+  plan: 'My development plan',
+  annual: 'My training year',
+  programmes: 'All programmes',
+  ojt: 'My OJT progress chart',
+  qualifications: 'My qualifications',
+  requests: 'My training requests',
+}
 
 export default function EmployeePortal() {
   const [plan, setPlan] = useState<EmployeePlan | null>(null)
@@ -85,7 +99,7 @@ export default function EmployeePortal() {
         nav={NAV}
         active={section}
         onNavigate={setSection}
-        title={section === 'plan' ? 'My development plan' : section === 'programmes' ? 'All programmes' : 'My training requests'}
+        title={TITLE[section] || 'My development plan'}
         account={{ name: plan.employee.name, detail: plan.employee.designation || 'Staff', initials: plan.employee.initials, tone: plan.employee.tone }}
         notifications={<Notifications notices={employeeNotices(plan)} userId={plan.me.id} onOpen={setSection} />}
         headerAction={
@@ -251,6 +265,91 @@ export default function EmployeePortal() {
               </div>
             </div>
             <ProgrammePlan records={plan.records} onSelect={record => (record.applicable ? setSelected(record) : undefined)} />
+          </section>
+        )}
+
+        {section === 'annual' && (
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <div className="eyebrow">Annual training plan</div>
+                <h2>Courses planned for you</h2>
+                <p className="panel-note">What Training &amp; Standards has put you down for, and what the Director General decided.</p>
+              </div>
+              <span className="queue-count">{plan.annualPlan.length}</span>
+            </div>
+            {plan.annualPlan.length ? (
+              <div className="table-scroll">
+                <div className="annual-table annual-table-compact">
+                  <div className="annual-row annual-head">
+                    <span>Year</span>
+                    <span>Course title</span>
+                    <span>Institution / country</span>
+                    <span>Date</span>
+                    <span>Pri.</span>
+                    <span>Training type</span>
+                    <span>Course fee</span>
+                    <span>Director General</span>
+                  </div>
+                  {plan.annualPlan.map(line => (
+                    <div className={`annual-row dg-row-${line.dgStatus.toLowerCase()}`} key={line.id}>
+                      <span className="annual-no">{line.year}</span>
+                      <span className="annual-course">
+                        <strong>{line.courseTitle}</strong>
+                        {line.delivery === 'In-house' && <small className="tag tag-quiet">In-house</small>}
+                      </span>
+                      <span className="annual-where">{line.institution || '—'}</span>
+                      <span className="annual-when">{line.trainingDates || '—'}</span>
+                      <span>
+                        <PriorityPill priority={line.priority} />
+                      </span>
+                      <span className="annual-type">{line.trainingType || '—'}</span>
+                      <span className="annual-cost">{formatMoney(line.cost, line.currency)}</span>
+                      <span className="annual-dg">
+                        <DgPill status={line.dgStatus} />
+                        {line.dgComment && <small className="annual-dg-comment">&ldquo;{line.dgComment}&rdquo;</small>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <Empty title="You are not on an annual training plan yet" detail="Training & Standards builds the year's plan and sends it to the Director General." />
+            )}
+          </section>
+        )}
+
+        {section === 'ojt' && (
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <div className="eyebrow">On-the-job training</div>
+                <h2>OJT progress chart</h2>
+                <p className="panel-note">Signed off by your instructor at three levels: I discuss, II observe and assist, III perform.</p>
+              </div>
+            </div>
+            <OjtCharts charts={plan.ojtCharts} employeeName={plan.employee.name} canSign={false} />
+          </section>
+        )}
+
+        {section === 'qualifications' && (
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <div className="eyebrow">Your credentials</div>
+                <h2>Qualification certificates</h2>
+                <p className="panel-note">Optional. Upload your degree, diploma or licence certificates if you hold them — nothing here is compulsory.</p>
+              </div>
+              <span className="queue-count">{plan.credentials.length}</span>
+            </div>
+            <Credentials
+              credentials={plan.credentials}
+              canUpload
+              onChanged={async message => {
+                await load()
+                notify(message)
+              }}
+            />
           </section>
         )}
 

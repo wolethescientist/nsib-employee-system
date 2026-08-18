@@ -2059,6 +2059,310 @@ button:disabled {
   font-size: 14.5px;
 }
 
+/* ------------------------------------------------ annual training plan -- */
+/* The sheet, one member of staff at a time, with the DG's column on the end. */
+.table-scroll {
+  overflow-x: auto;
+}
+
+.plan-year-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.plan-year-no {
+  min-width: 26px;
+  color: var(--muted);
+  font: 500 12px var(--mono);
+}
+.plan-year-who {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.plan-year-who strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+}
+.plan-year-who small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.plan-year-tally {
+  text-align: right;
+}
+.plan-year-tally b {
+  display: block;
+  font: 600 16px var(--mono);
+}
+.plan-year-tally small {
+  color: var(--muted);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.annual-table {
+  min-width: 1180px;
+}
+.annual-row {
+  display: grid;
+  grid-template-columns: 46px minmax(220px, 1.5fr) minmax(150px, 1fr) 128px 52px 96px 104px minmax(210px, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13.5px;
+}
+.annual-table-compact .annual-row {
+  grid-template-columns: 58px minmax(200px, 1.4fr) minmax(140px, 1fr) 120px 52px 92px 100px minmax(160px, 0.8fr);
+}
+.annual-row:first-child {
+  border-top: 0;
+}
+.annual-head {
+  position: sticky;
+  top: 0;
+  align-items: center;
+  background: #f2f4f9;
+  color: var(--muted);
+  font: 500 9.5px var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+/* A rejected line stays on the sheet — the record of what was asked for and
+   turned down is the point — but it reads as struck through, not as plan. */
+.dg-row-rejected {
+  background: #fdf7f7;
+}
+.dg-row-rejected .annual-course strong {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.dg-row-amended {
+  background: #fdfaf1;
+}
+.dg-row-approved {
+  background: #fafdfb;
+}
+
+.annual-no {
+  color: var(--muted);
+  font: 500 11.5px var(--mono);
+}
+.annual-course strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.annual-course .tag {
+  margin-top: 5px;
+}
+.annual-where,
+.annual-when,
+.annual-type {
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.annual-where s {
+  display: block;
+  color: var(--muted);
+}
+.annual-where b {
+  display: block;
+  color: var(--amber);
+  font-weight: 700;
+}
+.annual-when {
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.annual-cost {
+  font: 600 12.5px var(--mono);
+}
+.annual-dg {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.annual-dg-change {
+  color: var(--amber);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.annual-dg-comment {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.annual-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+.annual-actions .approve,
+.annual-actions .decline,
+.annual-actions .primary {
+  padding: 6px 12px;
+  font-size: 12.5px;
+}
+
+.dg-pending {
+  background: var(--slate-soft);
+  color: var(--ink-soft);
+}
+.dg-approved {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.dg-rejected {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+.dg-amended {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.tag-level {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+/* ------------------------------------------------------ OJT progress -- */
+.ojt-chart {
+  border-top: 1px solid var(--line-soft);
+}
+.ojt-chart:first-child {
+  border-top: 0;
+}
+.ojt-chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+}
+.ojt-chart-head strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+}
+.ojt-chart-head small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.ojt-table {
+  min-width: 940px;
+}
+.ojt-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 2fr) 110px repeat(3, minmax(130px, 1fr));
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13.5px;
+}
+.ojt-head {
+  background: #f2f4f9;
+  color: var(--muted);
+  font: 500 9.5px var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.ojt-task {
+  line-height: 1.4;
+}
+.ojt-source {
+  color: var(--muted);
+  font-size: 12px;
+}
+.ojt-signed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--green);
+  font-size: 12px;
+}
+.ojt-signed b {
+  font-weight: 600;
+}
+.ojt-signed small {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+.ojt-open {
+  color: var(--muted);
+}
+.ojt-sign {
+  padding: 5px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.ojt-sign:hover:not(:disabled) {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.ojt-sign:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.ojt-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+/* --------------------------------------------------- checkbox groups -- */
+.check-list {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.check-list legend {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.checkbox-line {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 13.5px;
+  font-weight: 500 !important;
+  line-height: 1.45;
+}
+.checkbox-line input {
+  width: auto !important;
+  margin-top: 3px;
+  accent-color: var(--blue);
+}
+
 @media (max-width: 720px) {
   .topbar-actions {
     width: 100%;

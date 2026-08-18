@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import {
+  ANNUAL_PLAN_COLUMNS,
   EMPLOYEE_COLUMNS,
   canSeeEveryone,
   db,
@@ -8,13 +9,15 @@ import {
   isAdmin,
   isDirector,
   logAudit,
+  mapAnnualItem,
   mapDocument,
   mapEmployee,
   mapRequest,
   progressByEmployee,
   signPhotos,
 } from '@/lib/idp-server'
-import { PROGRAMME_TYPES } from '@/lib/programme'
+import { CURRENCIES, DELIVERY_MODES, PROGRAMME_TYPES } from '@/lib/programme'
+import { LEVEL3_CHECKS, OJT_TASKS } from '@/lib/ojt'
 
 const fail = (message: string, status: number) => NextResponse.json({ error: message }, { status })
 const text = (value: unknown) => {
@@ -33,7 +36,7 @@ const date = (value: unknown) => {
  */
 async function directory() {
   const client = db()
-  const [employees, courses, progressRows, documents, requests] = await Promise.all([
+  const [employees, courses, progressRows, documents, requests, annualPlan] = await Promise.all([
     client.from('employees').select(EMPLOYEE_COLUMNS).eq('active', true).order('name'),
     client.from('courses').select('id, name, programme_type, sort_order, renewal_cycle, owner_unit, required').eq('active', true).order('sort_order'),
     // Paged: one row per employee per course is well past PostgREST's cap.
@@ -44,6 +47,10 @@ async function directory() {
       .order('created_at', { ascending: false })
       .limit(200),
     client.from('training_requests').select('*, employees(name)').order('created_at', { ascending: false }),
+    // Several hundred rows across every year — well inside one page, but it is
+    // one row per person per course per year, so it grows the same way the
+    // training records do. Paged for the same reason.
+    fetchAll<any>('annual_plan_items', `${ANNUAL_PLAN_COLUMNS}, employees(name)`),
   ])
   for (const result of [employees, courses, documents, requests]) if (result.error) throw result.error
 
@@ -67,6 +74,9 @@ async function directory() {
     })),
     documents: (documents.data || []).map(mapDocument),
     requests: (requests.data || []).map(mapRequest),
+    annualPlan: annualPlan.map(mapAnnualItem),
+    // Newest year first — that is the one being planned or signed off.
+    planYears: Array.from(new Set(annualPlan.map((row: any) => row.year))).sort((a: any, b: any) => b - a),
   }
 }
 
@@ -114,6 +124,42 @@ export async function POST(request: Request) {
       if (updated.error) throw updated.error
       if (!updated.data) return fail('That request has already been decided.', 409)
       await logAudit(user.id, 'request_decided', 'training_request', updated.data.id, { status })
+      return NextResponse.json({ me: user, ...(await directory()) })
+    }
+
+    // ---- the DG's column on the annual training plan -----------------------
+    // Accept, reject, or amend one line of somebody's year: "not the UK — send
+    // them to the USA", or "an in-house expert can deliver this".
+    if (action === 'decide_plan_item') {
+      if (!isDirector(user.role)) return fail('Only the Director General can decide a training plan line.', 403)
+      const status = ['Approved', 'Rejected', 'Amended'].includes(String(payload.status)) ? String(payload.status) : null
+      if (!status) return fail('Decision must be Approved, Rejected or Amended.', 400)
+      const comment = text(payload.comment)
+      const institution = text(payload.institution)
+      const delivery = DELIVERY_MODES.includes(String(payload.delivery)) ? String(payload.delivery) : null
+      if (status === 'Rejected' && !comment) return fail('Give a reason when rejecting a line of the plan.', 400)
+      // An amendment that changes nothing is just an approval with extra steps —
+      // and Training & Standards would have nothing to act on.
+      if (status === 'Amended' && !institution && !delivery && !comment) {
+        return fail('Say what should change: a different institution or country, in-house delivery, or a note.', 400)
+      }
+      const updated = await client
+        .from('annual_plan_items')
+        .update({
+          dg_status: status,
+          dg_institution: status === 'Amended' ? institution : null,
+          dg_delivery: status === 'Amended' ? delivery : null,
+          dg_comment: comment,
+          dg_decided_by: user.id,
+          dg_decided_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', String(payload.id || ''))
+        .select('id')
+        .maybeSingle()
+      if (updated.error) throw updated.error
+      if (!updated.data) return fail('That line of the plan no longer exists.', 404)
+      await logAudit(user.id, 'plan_item_decided', 'annual_plan_item', updated.data.id, { status, institution, delivery })
       return NextResponse.json({ me: user, ...(await directory()) })
     }
 
@@ -315,6 +361,139 @@ export async function POST(request: Request) {
       await logAudit(user.id, 'training_assigned', 'training_record', assigned.data.id, { employeeId, courseId })
     }
 
+    // ---- the annual training plan ------------------------------------------
+    else if (action === 'upsert_plan_item') {
+      const employeeId = String(payload.employeeId || '')
+      const year = Number(payload.year)
+      const courseTitle = text(payload.courseTitle)
+      if (!employeeId || !courseTitle) return fail('A member of staff and a course title are required.', 400)
+      if (!Number.isInteger(year) || year < 2000 || year > 2100) return fail('Enter the plan year, e.g. 2026.', 400)
+      const cost = payload.cost === '' || payload.cost === null || payload.cost === undefined ? null : Number(payload.cost)
+      if (cost !== null && (!Number.isFinite(cost) || cost < 0)) return fail('Cost must be a positive number.', 400)
+
+      const row = {
+        employee_id: employeeId,
+        year,
+        serial: Number(payload.serial) > 0 ? Number(payload.serial) : 1,
+        course_title: courseTitle,
+        institution: text(payload.institution),
+        training_dates: text(payload.trainingDates),
+        priority: ['P1', 'P2', 'P3', 'R'].includes(String(payload.priority)) ? payload.priority : null,
+        training_type: text(payload.trainingType),
+        cost,
+        currency: CURRENCIES.includes(String(payload.currency)) ? payload.currency : 'NGN',
+        delivery: DELIVERY_MODES.includes(String(payload.delivery)) ? String(payload.delivery) : 'External',
+        updated_at: new Date().toISOString(),
+      }
+
+      const id = text(payload.id)
+      if (id) {
+        // Editing an existing line. The DG's verdict is deliberately left alone:
+        // clearing it is an explicit `reopen`, so correcting a typo does not
+        // throw away a signature, and a real change of substance still can.
+        const update: Record<string, unknown> = { ...row }
+        if (payload.reopen === true) {
+          Object.assign(update, { dg_status: 'Pending', dg_institution: null, dg_delivery: null, dg_comment: null, dg_decided_by: null, dg_decided_at: null })
+        }
+        const saved = await client.from('annual_plan_items').update(update).eq('id', id).select('id').maybeSingle()
+        if (saved.error) throw saved.error
+        if (!saved.data) return fail('That line of the plan no longer exists.', 404)
+        await logAudit(user.id, 'plan_item_updated', 'annual_plan_item', id, { reopened: payload.reopen === true })
+      } else {
+        const created = await client.from('annual_plan_items').insert(row).select('id').single()
+        if (created.error) {
+          if (created.error.code === '23505') return fail('That course is already on this plan for that year.', 409)
+          throw created.error
+        }
+        await logAudit(user.id, 'plan_item_added', 'annual_plan_item', created.data.id, { employeeId, year, courseTitle })
+      }
+    } else if (action === 'delete_plan_item') {
+      const id = String(payload.id || '')
+      if (!id) return fail('A plan line is required.', 400)
+      const removed = await client.from('annual_plan_items').delete().eq('id', id).select('id').maybeSingle()
+      if (removed.error) throw removed.error
+      if (!removed.data) return fail('That line of the plan no longer exists.', 404)
+      await logAudit(user.id, 'plan_item_deleted', 'annual_plan_item', id, {})
+    }
+
+    // Taking the DG's amendment onto the line itself: his suggested institution
+    // and delivery become the plan, and the line reads Approved from then on.
+    else if (action === 'apply_amendment') {
+      const id = String(payload.id || '')
+      const item = await client.from('annual_plan_items').select('id, dg_status, dg_institution, dg_delivery, institution, delivery').eq('id', id).maybeSingle()
+      if (item.error) throw item.error
+      if (!item.data) return fail('That line of the plan no longer exists.', 404)
+      if (item.data.dg_status !== 'Amended') return fail('There is no amendment to apply on that line.', 409)
+      const applied = await client
+        .from('annual_plan_items')
+        .update({
+          institution: item.data.dg_institution || item.data.institution,
+          delivery: item.data.dg_delivery || item.data.delivery,
+          dg_status: 'Approved',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+      if (applied.error) throw applied.error
+      await logAudit(user.id, 'amendment_applied', 'annual_plan_item', id, { institution: item.data.dg_institution, delivery: item.data.dg_delivery })
+    }
+
+    // ---- OJT progress charts ------------------------------------------------
+    else if (action === 'create_ojt_chart') {
+      const employeeId = String(payload.employeeId || '')
+      if (!employeeId) return fail('A member of staff is required.', 400)
+      const chart = await client
+        .from('ojt_charts')
+        .insert({
+          employee_id: employeeId,
+          title: text(payload.title) || 'Aircraft Accident Investigator OJT Progress Chart',
+          grade_level: text(payload.gradeLevel),
+          supervisor: text(payload.supervisor),
+          created_by: user.id,
+        })
+        .select('id')
+        .single()
+      if (chart.error) throw chart.error
+      // A new chart starts as the paper form does — the standard task list, which
+      // the instructor then works down.
+      const tasks = await client
+        .from('ojt_tasks')
+        .insert(OJT_TASKS.map((task, index) => ({ chart_id: chart.data.id, task: task.task, source: task.source, sort_order: index + 1 })))
+      if (tasks.error) throw tasks.error
+      await logAudit(user.id, 'ojt_chart_created', 'ojt_chart', chart.data.id, { employeeId })
+    } else if (action === 'sign_ojt_task') {
+      const id = String(payload.id || '')
+      const level = Number(payload.level)
+      const confirmedBy = text(payload.confirmedBy)
+      const signedAt = date(payload.signedAt) || new Date().toISOString().slice(0, 10)
+      if (!id || ![1, 2, 3].includes(level)) return fail('Choose a task and a level (I, II or III).', 400)
+      if (!confirmedBy) return fail('Record who confirmed this level — the form needs a name against the signature.', 400)
+      // The form's own gate: Level III is only valid where the instructor can
+      // answer yes to all four validation questions.
+      const checks = payload.checks
+      if (level === 3 && !(Array.isArray(checks) && checks.length === LEVEL3_CHECKS.length && checks.every((answer: unknown) => answer === true))) {
+        return fail('Level III needs a yes to all four validation questions before it can be signed.', 400)
+      }
+      const signed = await client
+        .from('ojt_tasks')
+        .update({ ['level' + level + '_by']: confirmedBy, ['level' + level + '_at']: signedAt })
+        .eq('id', id)
+        .select('id, chart_id')
+        .maybeSingle()
+      if (signed.error) throw signed.error
+      if (!signed.data) return fail('That OJT task no longer exists.', 404)
+      await logAudit(user.id, 'ojt_level_signed', 'ojt_task', id, { level, confirmedBy, signedAt })
+    } else if (action === 'complete_ojt_chart') {
+      const id = String(payload.id || '')
+      const tasks = await client.from('ojt_tasks').select('id, level3_at').eq('chart_id', id)
+      if (tasks.error) throw tasks.error
+      if (!tasks.data?.length) return fail('That chart no longer exists.', 404)
+      const unfinished = tasks.data.filter((task: any) => !task.level3_at).length
+      if (unfinished) return fail(unfinished + (unfinished === 1 ? ' task has' : ' tasks have') + ' not been signed off at Level III yet.', 409)
+      const closed = await client.from('ojt_charts').update({ status: 'Completed', completed_at: new Date().toISOString() }).eq('id', id)
+      if (closed.error) throw closed.error
+      await logAudit(user.id, 'ojt_chart_completed', 'ojt_chart', id, {})
+    }
+
     // ---- record maintenance ------------------------------------------------
     else if (action === 'update_employee') {
       const id = String(payload.id || '')
@@ -329,6 +508,7 @@ export async function POST(request: Request) {
           division: text(payload.division),
           department: text(payload.department),
           profession: text(payload.profession),
+          personnel_level: text(payload.personnelLevel),
           training_profile: text(payload.trainingProfile),
           years_experience: years,
           qualifications: text(payload.qualifications),
@@ -354,6 +534,7 @@ export async function POST(request: Request) {
           division: text(payload.division),
           department: text(payload.department),
           profession: text(payload.profession),
+          personnel_level: text(payload.personnelLevel),
           training_profile: text(payload.trainingProfile),
           license: text(payload.license),
           email,

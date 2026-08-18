@@ -3,7 +3,7 @@
 import { FormEvent, useState } from 'react'
 import { IdpHeader } from '@/components/IdpHeader'
 import { ProgrammePlan } from '@/components/ProgrammePlan'
-import { Empty, Icon, Modal, StatusPill } from '@/components/ui'
+import { Empty, Icon, Modal, ProfessionField, StatusPill } from '@/components/ui'
 import { daysToDeadline, formatMoney, formatWhen } from '@/lib/programme'
 import type { EmployeePlan, PlanRow } from '@/lib/types'
 
@@ -304,6 +304,11 @@ function ProfileEditor({ plan, onClose, onSave }: { plan: EmployeePlan; onClose:
             Designation
             <input name="designation" defaultValue={employee.designation ?? ''} />
           </label>
+          <ProfessionField value={employee.profession} />
+          <label>
+            Licence number
+            <input name="license" defaultValue={employee.license ?? ''} placeholder="e.g. 2470" />
+          </label>
           <label>
             Division
             <input name="division" defaultValue={employee.division ?? ''} />
@@ -319,10 +324,6 @@ function ProfileEditor({ plan, onClose, onSave }: { plan: EmployeePlan; onClose:
           <label>
             Years of experience
             <input name="yearsExperience" type="number" min={0} max={80} defaultValue={employee.yearsExperience ?? ''} />
-          </label>
-          <label>
-            Licence / staff number
-            <input name="license" defaultValue={employee.license ?? ''} />
           </label>
         </div>
         <label>

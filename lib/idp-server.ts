@@ -13,6 +13,7 @@ export type EmployeeRow = {
   designation: string | null
   division: string | null
   department: string | null
+  profession: string | null
   training_profile: string | null
   years_experience: number | null
   qualifications: string | null
@@ -22,7 +23,7 @@ export type EmployeeRow = {
 }
 
 export const EMPLOYEE_COLUMNS =
-  'id, sheet_key, name, initials, designation, division, department, training_profile, years_experience, qualifications, license, email, photo_path'
+  'id, sheet_key, name, initials, designation, division, department, profession, training_profile, years_experience, qualifications, license, email, photo_path'
 
 export const RECORD_COLUMNS =
   'id, employee_id, course_id, applicable, priority, status, planned_date, planned_year, due_date, completed_date, completed_year, comments, review_comment, updated_at'
@@ -63,6 +64,7 @@ export function mapEmployee(row: EmployeeRow, photoUrl?: string) {
     designation: row.designation,
     division: row.division,
     department: row.department,
+    profession: row.profession,
     trainingProfile: row.training_profile,
     yearsExperience: row.years_experience,
     // The workbook keeps qualifications as one comma-separated string.

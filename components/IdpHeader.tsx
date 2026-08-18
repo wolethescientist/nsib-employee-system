@@ -66,6 +66,7 @@ export function IdpHeader({
           <h1>{employee.name}</h1>
           <p className="idp-designation">{employee.designation || 'Designation not recorded'}</p>
           <div className="idp-tags">
+            {employee.profession && <span className="tag tag-profession">{employee.profession}</span>}
             {employee.trainingProfile && <span className="tag">{employee.trainingProfile} profile</span>}
             {employee.license && <span className="tag">Licence {employee.license}</span>}
             {employee.yearsExperience !== null && employee.yearsExperience !== undefined && (
@@ -94,6 +95,14 @@ export function IdpHeader({
       </div>
 
       <dl className="idp-facts">
+        <div>
+          <dt>Profession</dt>
+          <dd>{employee.profession || <span className="fact-missing">Not recorded</span>}</dd>
+        </div>
+        <div>
+          <dt>Licence number</dt>
+          <dd>{employee.license || <span className="fact-missing">Not recorded</span>}</dd>
+        </div>
         <div>
           <dt>Division</dt>
           <dd>{employee.division || '—'}</dd>

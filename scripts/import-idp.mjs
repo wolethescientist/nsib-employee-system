@@ -61,6 +61,14 @@ const courseIdBySlot = new Map(
 )
 
 // ---- employees -----------------------------------------------------------
+// Profession is not in the workbook — it is inferred from the licence in the
+// qualifications line, and an administrator can correct it in the app. Keep
+// whatever is already stored so re-running the import never overwrites a
+// correction with the guess it replaced.
+const storedProfession = new Map(
+  check(await db.from('employees').select('sheet_key, profession'), 'read professions').map(row => [row.sheet_key, row.profession]),
+)
+
 const employeeRows = dataset.employees.map(employee => ({
   sheet_key: employee.key,
   name: employee.name,
@@ -68,6 +76,7 @@ const employeeRows = dataset.employees.map(employee => ({
   designation: employee.designation,
   division: employee.division,
   department: employee.department,
+  profession: storedProfession.get(employee.key) ?? employee.profession,
   training_profile: employee.training_profile,
   years_experience: employee.years_experience,
   qualifications: employee.qualifications,

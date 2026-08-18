@@ -8,6 +8,7 @@ import { EmployeeDetail } from '@/components/admin/EmployeeDetail'
 import { CertificateQueue } from '@/components/admin/CertificateQueue'
 import { RequestsBoard } from '@/components/admin/RequestsBoard'
 import { AddEmployee, Catalogue, Overview } from '@/components/admin/Sections'
+import { ExportDialog } from '@/components/admin/ExportDialog'
 import { downloadCsv, getJson, postForm, postJson } from '@/lib/client'
 import { initialsOf, toneFor } from '@/lib/programme'
 import type { Directory, EmployeePlan } from '@/lib/types'
@@ -28,6 +29,7 @@ export default function AdminConsole() {
   const [toast, setToast] = useState('')
   const [addingEmployee, setAddingEmployee] = useState(false)
   const [raisingRequest, setRaisingRequest] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   const notify = useCallback((message: string) => {
     setToast(message)
@@ -125,9 +127,9 @@ export default function AdminConsole() {
         account={{ name: accountName, detail: directory.me.email, initials: initialsOf(accountName), tone: toneFor(directory.me.id) }}
         headerAction={
           section === 'employees' && !plan ? (
-            <button type="button" className="ghost" onClick={() => downloadCsv('/api/plan/export', 'nsib-training-repository.csv')}>
+            <button type="button" className="ghost" onClick={() => setExporting(true)}>
               <Icon name="download" size={14} />
-              Export everything
+              Export to CSV
             </button>
           ) : section === 'requests' && !readOnly ? (
             <button type="button" className="primary" onClick={() => setRaisingRequest(true)}>
@@ -219,6 +221,8 @@ export default function AdminConsole() {
 
         {!directory.employees.length && section === 'employees' && <Empty title="No staff records yet" detail="Run the workbook import to load the register." />}
       </Shell>
+
+      {exporting && <ExportDialog employees={directory.employees} onClose={() => setExporting(false)} onDone={notify} />}
 
       {addingEmployee && (
         <AddEmployee

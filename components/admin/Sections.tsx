@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useMemo, useState } from 'react'
-import { Icon, Modal, ProgressBar } from '@/components/ui'
+import { Icon, Modal, ProfessionField, ProgressBar } from '@/components/ui'
 import { PROGRAMME_BLURB, PROGRAMME_TYPES, type ProgrammeType } from '@/lib/programme'
 import type { CertificateDocument, Course, DirectoryEmployee, TrainingRequest } from '@/lib/types'
 
@@ -265,6 +265,11 @@ export function AddEmployee({ onClose, onCreate }: { onClose: () => void; onCrea
             Designation
             <input name="designation" placeholder="Air Safety Investigator" />
           </label>
+          <ProfessionField />
+          <label>
+            Licence number
+            <input name="license" placeholder="e.g. 2470" />
+          </label>
           <label>
             Division
             <input name="division" placeholder="Technical Investigation" />
@@ -276,10 +281,6 @@ export function AddEmployee({ onClose, onCreate }: { onClose: () => void; onCrea
           <label>
             Training profile
             <input name="trainingProfile" placeholder="Technical" />
-          </label>
-          <label>
-            Licence / staff number
-            <input name="license" />
           </label>
         </div>
         {error && <div className="form-error">{error}</div>}

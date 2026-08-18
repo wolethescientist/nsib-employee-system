@@ -17,6 +17,20 @@ how to read it.
 | `Planned Date`, `Year completed` | Real dates for new scheduling; the bare years from the workbook are preserved |
 | Certificate hyperlinks in `Comments` | Uploaded files in private storage, verified by an administrator |
 
+## Exporting
+
+CSV, laid out like the workbook sheet — header block, then the course grid in
+columns B–J, the priority legend in L–M, and the sign-off box at the foot. It
+opens straight in Excel.
+
+- **Admin → Staff records → Export to CSV** — all staff (one plan after another) or a single member of staff.
+- **Admin → open a staff record → Export IDP** — that one plan.
+- **Employee → Download my plan** — their own, and only their own.
+
+Under the hood: `GET /api/plan/export[?employee=<id>]`. An employee always gets
+their own plan whatever id they pass. The layout lives in `lib/idp-csv.ts` and is
+pinned by `npm run check`.
+
 ## Roles
 
 - **Employee** — sees their own plan, submits certificates, reads why one was returned.
@@ -93,6 +107,7 @@ npm run build
 | `lib/idp-server.ts` | Row → payload mapping, paged reads, role checks |
 | `components/ProgrammePlan.tsx` | The collapsible programme-type grid |
 | `components/IdpHeader.tsx` | The IDP header block |
+| `lib/idp-csv.ts` | CSV export in the workbook's own column layout |
 | `app/admin/` | Administrator and Director workspace |
 | `app/employee/` | Employee workspace |
 | `scripts/extract-workbook.py` | Workbook → JSON, including title de-duplication |

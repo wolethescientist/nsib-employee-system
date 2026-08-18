@@ -849,9 +849,22 @@ button:disabled {
 
 .idp-facts {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   margin: 0;
   border-top: 1px solid var(--line);
+}
+.fact-missing {
+  color: var(--muted);
+  font-style: italic;
+}
+.tag-profession {
+  background: var(--green-soft) !important;
+  color: var(--green) !important;
+}
+.idp-tags .tag-profession {
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: #fff !important;
+  font-weight: 700;
 }
 .idp-facts > div {
   padding: 14px 18px;

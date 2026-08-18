@@ -50,6 +50,27 @@ TITLE_FIX = {
 PRIORITY = {"high": "P1", "higb": "P1", "medium": "P2", "meddium": "P2", "low": "P3", "r": "R"}
 STATUS = {"completed": "Completed", "planned": "Planned", "in progress": "In progress"}
 
+# The workbook has no profession column, but the qualifications line names the
+# professional licence each investigator holds, and those markers are
+# definitional rather than a guess: AMEL *is* an Aircraft Maintenance Engineer
+# Licence, ATC an air traffic controller rating, CPL/ATPL a pilot licence.
+# Anything without a licence marker is left blank for an administrator to fill.
+# First match wins, so the more specific rating is listed before the general one.
+PROFESSION_RULES = [
+    (re.compile(r"\bATPL\b|\bCPL\b|\bPPL\b|Commercial Pilot|Pilot Licen", re.I), "Pilot"),
+    (re.compile(r"\bATC\b|Air Traffic", re.I), "Air Traffic Controller"),
+    (re.compile(r"Avionic", re.I), "Avionics Engineer"),
+    (re.compile(r"\bLAME\b|\bAMEL\b|\bAME\b|A ?& ?P|Aircraft Maintenance Engineer", re.I), "Aircraft Maintenance Engineer"),
+    (re.compile(r"Dispatcher", re.I), "Flight Dispatcher"),
+]
+
+
+def profession_from(qualifications):
+    for pattern, profession in PROFESSION_RULES:
+        if pattern.search(qualifications or ""):
+            return profession
+    return None
+
 
 def norm(value):
     return re.sub(r"\s+", " ", str(value if value is not None else "")).strip()
@@ -141,6 +162,7 @@ def main():
         if not name:
             continue
         key = sheet.title.strip()
+        quals = qualifications(sheet["B9"].value)
         employees.append({
             "key": key,
             "name": name,
@@ -148,9 +170,10 @@ def main():
             "designation": norm(sheet["D4"].value) or None,
             "division": norm(sheet["D5"].value) or None,
             "department": norm(sheet["D6"].value) or None,
+            "profession": profession_from(quals),
             "training_profile": norm(sheet["D7"].value) or None,
             "years_experience": experience_years(sheet["D8"].value),
-            "qualifications": qualifications(sheet["B9"].value),
+            "qualifications": quals,
             "email": email_for(name, taken),
         })
         for course in courses:
@@ -177,6 +200,7 @@ def main():
     with open(OUT, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, ensure_ascii=False)
 
+    professions = collections.Counter(employee["profession"] or "(not recorded)" for employee in employees)
     print(json.dumps({
         "out": OUT,
         "courses": len(courses),
@@ -184,6 +208,7 @@ def main():
         "records": len(records),
         "completed": sum(1 for r in records if r["status"] == "Completed"),
         "notApplicable": sum(1 for r in records if not r["applicable"]),
+        "professionsFromLicence": dict(professions.most_common()),
     }, indent=2))
 
 

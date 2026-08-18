@@ -30,7 +30,8 @@ export function EmployeeDirectory({
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase()
     return employees.filter(employee => {
-      const haystack = `${employee.name} ${employee.designation ?? ''} ${employee.division ?? ''} ${employee.department ?? ''} ${employee.license ?? ''}`.toLowerCase()
+      const haystack =
+        `${employee.name} ${employee.designation ?? ''} ${employee.profession ?? ''} ${employee.division ?? ''} ${employee.department ?? ''} ${employee.license ?? ''}`.toLowerCase()
       if (needle && !haystack.includes(needle)) return false
       if (division !== ALL && employee.division !== division) return false
       if (profile !== ALL && employee.trainingProfile !== profile) return false
@@ -44,7 +45,7 @@ export function EmployeeDirectory({
       <div className="toolbar">
         <div className="search">
           <Icon name="search" size={15} />
-          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search by name, designation, division or licence" aria-label="Search staff" />
+          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search by name, profession, designation, division or licence" aria-label="Search staff" />
         </div>
         <label className="select-field">
           <span>Division</span>
@@ -86,6 +87,7 @@ export function EmployeeDirectory({
                 <small>{employee.designation || 'Designation not recorded'}</small>
                 <div className="staff-card-meta">
                   <span>{employee.division || 'No division'}</span>
+                  {employee.profession && <span className="tag tag-profession">{employee.profession}</span>}
                   {employee.trainingProfile && <span className="tag tag-quiet">{employee.trainingProfile}</span>}
                 </div>
               </div>

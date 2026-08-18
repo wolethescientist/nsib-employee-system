@@ -16,6 +16,33 @@ export const PROGRAMME_BLURB: Record<ProgrammeType, string> = {
   Recurrent: 'Currency training that must be renewed every two years.',
 }
 
+/**
+ * Professional backgrounds offered in the profile dashboard. NSIB investigates
+ * air, rail and marine occurrences, so the list spans all three. It is only a
+ * set of suggestions — profession is stored as free text, and the form always
+ * offers "Other" so an administrator can type a background the list misses.
+ */
+export const PROFESSIONS = [
+  'Pilot',
+  'Aeronautical Engineer',
+  'Aircraft Maintenance Engineer',
+  'Avionics Engineer',
+  'Air Traffic Controller',
+  'Flight Dispatcher',
+  'Cabin Crew',
+  'Aviation Meteorologist',
+  'Seafarer',
+  'Marine Engineer',
+  'Marine Officer',
+  'Rail Operations Officer',
+  'Rail Engineer',
+  'Aeromedical Practitioner',
+  'Human Factors Specialist',
+  'Data Analyst',
+  'Legal Officer',
+  'Administrative Officer',
+]
+
 /** The workbook's priority legend, verbatim. */
 export type Priority = 'P1' | 'P2' | 'P3' | 'R'
 export const PRIORITIES: { code: Priority; label: string; meaning: string }[] = [

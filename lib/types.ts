@@ -8,6 +8,7 @@ export type Employee = {
   designation: string | null
   division: string | null
   department: string | null
+  profession: string | null
   trainingProfile: string | null
   yearsExperience: number | null
   qualifications: string[]

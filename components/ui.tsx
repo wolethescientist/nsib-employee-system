@@ -1,7 +1,51 @@
 'use client'
 
-import { ReactNode, useEffect } from 'react'
-import { PRIORITY_LABEL, type DisplayStatus, type Priority } from '@/lib/programme'
+import { ReactNode, useEffect, useState } from 'react'
+import { PRIORITY_LABEL, PROFESSIONS, type DisplayStatus, type Priority } from '@/lib/programme'
+
+const OTHER = '__other__'
+
+/**
+ * Professional background: a dropdown of the usual ones, plus a box to type
+ * anything the list does not cover. A stored value that is not in the list
+ * (someone typed it last time) reopens on "Other" with the text filled in, so
+ * editing a record never silently loses what was recorded.
+ *
+ * Submits a single `profession` field either way.
+ */
+export function ProfessionField({ value }: { value?: string | null }) {
+  const known = value ? PROFESSIONS.includes(value) : true
+  const [choice, setChoice] = useState(value ? (known ? value : OTHER) : '')
+  const [typed, setTyped] = useState(known ? '' : value || '')
+
+  return (
+    <>
+      <label>
+        Profession
+        <select value={choice} onChange={event => setChoice(event.target.value)}>
+          <option value="">Not recorded</option>
+          {PROFESSIONS.map(profession => (
+            <option key={profession} value={profession}>
+              {profession}
+            </option>
+          ))}
+          <option value={OTHER}>Other — type it below</option>
+        </select>
+        <small className="field-hint">Pilot, Aeronautical Engineer, Air Traffic Controller, Seafarer and so on.</small>
+      </label>
+
+      {choice === OTHER ? (
+        <label>
+          Profession (typed)
+          <input name="profession" value={typed} onChange={event => setTyped(event.target.value)} placeholder="e.g. Naval Architect" autoFocus required />
+          <small className="field-hint">Used when the profession is not in the list above.</small>
+        </label>
+      ) : (
+        <input type="hidden" name="profession" value={choice} />
+      )}
+    </>
+  )
+}
 
 const ICONS: Record<string, string> = {
   people: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',

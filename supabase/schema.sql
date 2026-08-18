@@ -47,6 +47,10 @@ create table public.employees (
   designation text,
   division text,
   department text,
+  -- Professional background: Pilot, Aeronautical Engineer, Air Traffic
+  -- Controller, Seafarer and so on. Free text, not an enum — the UI suggests the
+  -- common ones but lets the administrator type anything the list misses.
+  profession text,
   training_profile text,
   years_experience smallint,
   qualifications text,

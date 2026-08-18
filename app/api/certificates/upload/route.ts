@@ -1,40 +1,79 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
+import { canSeeEveryone, db, logAudit } from '@/lib/idp-server'
 import { certificateBucket, supabaseAdmin } from '@/lib/supabase-admin'
 
-const allowed = new Set(['application/pdf', 'image/jpeg', 'image/png'])
-const maxBytes = 10 * 1024 * 1024
+const ALLOWED = new Set(['application/pdf', 'image/jpeg', 'image/png'])
+const MAX_BYTES = 10 * 1024 * 1024
 
+/**
+ * The employee's "I have finished this course" action: attach the certificate
+ * and hand the record to Training & Standards for verification. The course is
+ * not Completed until an administrator approves the evidence.
+ */
 export async function POST(request: Request) {
   const user = await getSession()
   if (!user) return NextResponse.json({ error: 'You must be signed in.' }, { status: 401 })
+
   try {
-    const db = supabaseAdmin() as any
+    const client = db()
     const form = await request.formData()
     const file = form.get('file')
     const trainingRecordId = String(form.get('trainingRecordId') || '')
     const completedDate = String(form.get('completedDate') || '')
     const comments = String(form.get('comments') || '').trim()
-    if (!(file instanceof File) || !trainingRecordId) return NextResponse.json({ error: 'File and training record are required.' }, { status: 400 })
-    if (!allowed.has(file.type)) return NextResponse.json({ error: 'Only PDF, JPG and PNG files are allowed.' }, { status: 400 })
-    if (file.size > maxBytes) return NextResponse.json({ error: 'File must be 10 MB or smaller.' }, { status: 400 })
-    const record = await db.from('training_records').select('id, employee_id, courses(name)').eq('id', trainingRecordId).maybeSingle()
-    if (record.error || !record.data?.id) return NextResponse.json({ error: 'Training record not found.' }, { status: 404 })
-    if (user.role === 'employee' && record.data.employee_id !== user.employeeId) return NextResponse.json({ error: 'You can only upload evidence for your own training.' }, { status: 403 })
-    const path = `${user.employeeId || 'admin'}/${trainingRecordId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '-')}`
-    const storage = supabaseAdmin().storage.from(certificateBucket())
-    const upload = await storage.upload(path, Buffer.from(await file.arrayBuffer()), { contentType: file.type, upsert: false })
+
+    if (!(file instanceof File) || !trainingRecordId) return NextResponse.json({ error: 'Choose a course and a certificate file.' }, { status: 400 })
+    if (!ALLOWED.has(file.type)) return NextResponse.json({ error: 'Only PDF, JPG and PNG files are accepted.' }, { status: 400 })
+    if (file.size > MAX_BYTES) return NextResponse.json({ error: 'The file must be 10 MB or smaller.' }, { status: 400 })
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(completedDate)) return NextResponse.json({ error: 'Enter the date you completed the course.' }, { status: 400 })
+
+    const record = await client.from('training_records').select('id, employee_id, applicable').eq('id', trainingRecordId).maybeSingle()
+    if (record.error) throw record.error
+    if (!record.data) return NextResponse.json({ error: 'Training record not found.' }, { status: 404 })
+    if (!canSeeEveryone(user.role) && record.data.employee_id !== user.employeeId) {
+      return NextResponse.json({ error: 'You can only upload evidence for your own training.' }, { status: 403 })
+    }
+    if (!record.data.applicable) return NextResponse.json({ error: 'This course is not applicable to you.' }, { status: 409 })
+
+    const storagePath = `${record.data.employee_id}/${trainingRecordId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '-')}`
+    const upload = await supabaseAdmin()
+      .storage.from(certificateBucket())
+      .upload(storagePath, Buffer.from(await file.arrayBuffer()), { contentType: file.type, upsert: false })
     if (upload.error) throw upload.error
-    const { data, error } = await db.from('training_documents').insert({ training_record_id: trainingRecordId, file_name: file.name, storage_path: path, content_type: file.type, file_size: file.size, uploaded_by: user.id }).select('id, file_name, review_status, created_at').single()
-    if (error) throw error
-    const update = await db.from('training_records').update({ status: user.role === 'employee' ? 'In progress' : 'Completed', completed_date: completedDate || new Date().toISOString().slice(0, 10), comments: comments || null, updated_at: new Date().toISOString() }).eq('id', trainingRecordId)
-    if (update.error) throw update.error
-    const approval = await db.from('approvals').insert({ employee_id: record.data.employee_id, training_record_id: trainingRecordId, kind: 'Evidence review', status: 'Pending', submitted_by: user.id }).select('id').single()
-    if (approval.error) throw approval.error
-    await db.from('audit_logs').insert({ actor_id: user.id, action: 'certificate_uploaded', entity_type: 'training_document', entity_id: data.id, metadata: { fileName: file.name } })
-    return NextResponse.json({ document: data }, { status: 201 })
+
+    const document = await client
+      .from('training_documents')
+      .insert({
+        training_record_id: trainingRecordId,
+        file_name: file.name,
+        storage_path: storagePath,
+        content_type: file.type,
+        file_size: file.size,
+        uploaded_by: user.id,
+      })
+      .select('id, file_name, review_status, created_at')
+      .single()
+    if (document.error) throw document.error
+
+    // Submitted, not Completed — an administrator still has to verify it.
+    const updated = await client
+      .from('training_records')
+      .update({
+        status: 'Submitted',
+        completed_date: completedDate,
+        completed_year: Number(completedDate.slice(0, 4)),
+        comments: comments || null,
+        review_comment: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', trainingRecordId)
+    if (updated.error) throw updated.error
+
+    await logAudit(user.id, 'certificate_uploaded', 'training_document', document.data.id, { fileName: file.name, trainingRecordId })
+    return NextResponse.json({ document: document.data }, { status: 201 })
   } catch (error) {
     console.error(error)
-    return NextResponse.json({ error: 'Unable to upload certificate.' }, { status: 500 })
+    return NextResponse.json({ error: 'Unable to upload the certificate.' }, { status: 500 })
   }
 }

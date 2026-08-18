@@ -3,3 +3,8 @@ node_modules/
 *.tsbuildinfo
 .env*
 !.env.example
+
+# Temporary staff passwords produced by scripts/import-idp.mjs
+data/staff-credentials.csv
+workbook_analysis/
+dev.log

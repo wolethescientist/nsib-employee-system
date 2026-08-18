@@ -7,7 +7,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "check": "node scripts/check-programme.mjs",
+    "extract": "python scripts/extract-workbook.py",
+    "import": "node --env-file=.env.local scripts/import-idp.mjs"
   },
   "dependencies": {
     "next": "14.2.5",

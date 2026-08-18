@@ -1,21 +1,83 @@
 'use client'
 
-import { FormEvent, Suspense, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { FormEvent, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
-function LoginContent() {
+export default function LoginPage() {
   const router = useRouter()
-  const params = useSearchParams()
-  const requestedRole = params.get('role') === 'employee' ? 'employee' : params.get('role') === 'admin' ? 'admin' : 'generic'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  async function submit(event: FormEvent) { event.preventDefault(); setLoading(true); setError(''); const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password }) }); const result = await response.json(); setLoading(false); if (!response.ok) { setError(result.error || 'Unable to sign in.'); return } router.push(result.user.role === 'employee' ? '/employee' : '/admin') }
-  const heading = requestedRole === 'employee' ? 'Employee portal' : requestedRole === 'admin' ? 'Admin console' : 'Sign in to your workspace'
-  return <main className="login-shell"><div className="login-aside"><a href="/" className="brand login-brand"><img className="brand-logo login-logo" src="/nsib-logo.png" alt="Nigerian Safety Investigation Bureau" /></a><div className="login-aside-copy"><div className="section-label">Secure access</div><h1>One account. The right workspace.</h1><p>Sign in once and the system will take you to the workspace for your role—employee development or bureau administration.</p></div><div className="login-aside-foot">Nigerian Safety Investigation Bureau<br/>Training & Standards</div></div><section className="login-card"><div className="login-card-content"><div className="section-label">NSIB account</div><h2>{heading}</h2><p className="login-subtitle">Use your NSIB email and password to continue.</p><form onSubmit={submit}><label>Email address<input type="email" value={email} onChange={event => setEmail(event.target.value)} required autoComplete="email" /></label><label>Password<input type="password" value={password} onChange={event => setPassword(event.target.value)} required autoComplete="current-password" /></label>{error && <div className="login-error">{error}</div>}<button className="primary login-submit" disabled={loading}>{loading ? 'Signing in…' : 'Continue'}</button></form><div className="login-help">Need access? Contact Training & Standards to activate your account.</div></div></section></main>
-}
 
-export default function LoginPage() {
-  return <Suspense fallback={<main className="login-shell"><div className="login-card"><div className="login-card-content"><div className="section-label">NSIB account</div><h2>Loading sign in</h2></div></div></main>}><LoginContent /></Suspense>
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setError(result.error || 'Unable to sign in.')
+        setLoading(false)
+        return
+      }
+      router.push(result.user.role === 'employee' ? '/employee' : '/admin')
+    } catch {
+      setError('Could not reach the server. Please try again.')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <main className="login">
+      <section className="login-aside">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="login-logo" src="/nsib-logo.png" alt="Nigerian Safety Investigation Bureau" />
+        <div className="login-aside-copy">
+          <div className="eyebrow">Training repository</div>
+          <h1>Every investigator&rsquo;s development plan, in one record.</h1>
+          <p>
+            Qualifications, programme types, course completions and certificate evidence — the Individual Development Plan, kept current by the people who own it.
+          </p>
+        </div>
+        <div className="login-aside-foot">
+          Nigerian Safety Investigation Bureau
+          <br />
+          Training &amp; Standards
+        </div>
+      </section>
+
+      <section className="login-card">
+        <div className="login-card-inner">
+          <div className="eyebrow">NSIB account</div>
+          <h2>Sign in</h2>
+          <p className="login-subtitle">Use your NSIB email and password. You will land in the workspace for your role.</p>
+          <form onSubmit={submit}>
+            <label>
+              Email address
+              <input type="email" value={email} onChange={event => setEmail(event.target.value)} required autoComplete="email" autoFocus />
+            </label>
+            <label>
+              Password
+              <input type="password" value={password} onChange={event => setPassword(event.target.value)} required autoComplete="current-password" />
+            </label>
+            {error && (
+              <div className="form-error" role="alert">
+                {error}
+              </div>
+            )}
+            <button className="primary login-submit" disabled={loading}>
+              {loading ? 'Signing in…' : 'Continue'}
+            </button>
+          </form>
+          <p className="login-help">Need access, or forgotten your password? Contact Training &amp; Standards.</p>
+        </div>
+      </section>
+    </main>
+  )
 }

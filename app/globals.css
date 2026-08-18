@@ -1861,3 +1861,214 @@ button:disabled {
     overflow: visible;
   }
 }
+
+/* ------------------------------------------------------- notifications -- */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bell-wrap {
+  position: relative;
+}
+.bell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--ink-soft);
+  transition: border-color 180ms ease, color 180ms ease;
+}
+.bell:hover {
+  border-color: var(--muted);
+  color: var(--ink);
+}
+.bell.has-unread {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.bell-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 23px;
+  height: 23px;
+  padding: 0 6px;
+  border-radius: 23px;
+  background: var(--accent);
+  color: #fff;
+  font: 700 12px/23px var(--ui);
+  text-align: center;
+}
+
+.bell-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 40;
+  width: min(94vw, 430px);
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+.bell-panel-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--white);
+}
+.bell-panel-head strong {
+  font-size: 16px;
+}
+.bell-list {
+  display: grid;
+}
+.bell-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--line-soft);
+  text-align: left;
+  transition: background 150ms ease;
+}
+.bell-item:hover {
+  background: #fafbfd;
+}
+.bell-item.unread {
+  background: #fdf6f5;
+}
+.bell-item.unread:hover {
+  background: #fbeceb;
+}
+.bell-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+}
+.bell-action {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+.bell-good {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.bell-warn {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+.bell-copy {
+  flex: 1;
+  min-width: 0;
+}
+.bell-copy strong {
+  display: block;
+  font-size: 14.5px;
+  line-height: 1.35;
+}
+.bell-copy small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.bell-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.bell-empty {
+  padding: 32px 18px;
+  color: var(--muted);
+  font-size: 13.5px;
+  text-align: center;
+}
+
+/* The sign-in popup: one plain sentence and one obvious button. */
+.notice-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(20, 27, 51, 0.55);
+}
+.notice-popup {
+  width: min(100%, 470px);
+  padding: 34px 32px 28px;
+  background: var(--white);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+.notice-popup-mark {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+}
+.notice-popup h2 {
+  font-size: 23px;
+  line-height: 1.3;
+}
+.notice-popup p {
+  margin-top: 12px;
+  color: var(--ink-soft);
+  font-size: 15.5px;
+  line-height: 1.55;
+}
+.notice-popup-more {
+  margin-top: 10px !important;
+  color: var(--muted) !important;
+  font-size: 13.5px !important;
+}
+.notice-popup-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 26px;
+}
+.notice-popup-actions button {
+  min-width: 140px;
+  padding: 13px 20px;
+  font-size: 14.5px;
+}
+
+@media (max-width: 720px) {
+  .topbar-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .bell-panel {
+    position: fixed;
+    top: auto;
+    right: 12px;
+    left: 12px;
+    width: auto;
+  }
+}

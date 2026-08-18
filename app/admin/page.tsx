@@ -9,6 +9,8 @@ import { CertificateQueue } from '@/components/admin/CertificateQueue'
 import { RequestsBoard } from '@/components/admin/RequestsBoard'
 import { AddEmployee, Catalogue, Overview } from '@/components/admin/Sections'
 import { ExportDialog } from '@/components/admin/ExportDialog'
+import { Notifications } from '@/components/Notifications'
+import { adminNotices, directorNotices } from '@/lib/notifications'
 import { downloadCsv, getJson, postForm, postJson } from '@/lib/client'
 import { initialsOf, toneFor } from '@/lib/programme'
 import type { Directory, EmployeePlan } from '@/lib/types'
@@ -107,6 +109,8 @@ export default function AdminConsole() {
   ]
 
   const accountName = readOnly ? 'Director General' : 'Training & Standards'
+  // The DG only ever acts on requests; the training team acts on everything else.
+  const notices = readOnly ? directorNotices(directory.requests) : adminNotices(directory)
 
   return (
     <>
@@ -125,6 +129,16 @@ export default function AdminConsole() {
             : undefined
         }
         account={{ name: accountName, detail: directory.me.email, initials: initialsOf(accountName), tone: toneFor(directory.me.id) }}
+        notifications={
+          <Notifications
+            notices={notices}
+            userId={directory.me.id}
+            onOpen={section => {
+              setSection(section)
+              setPlan(null)
+            }}
+          />
+        }
         headerAction={
           section === 'employees' && !plan ? (
             <button type="button" className="ghost" onClick={() => setExporting(true)}>

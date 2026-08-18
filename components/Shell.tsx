@@ -15,6 +15,7 @@ export function Shell({
   account,
   children,
   headerAction,
+  notifications,
 }: {
   workspace: string
   nav: NavItem[]
@@ -25,6 +26,7 @@ export function Shell({
   account: { name: string; detail: string; initials: string; tone: string }
   children: ReactNode
   headerAction?: ReactNode
+  notifications?: ReactNode
 }) {
   async function signOut() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -71,7 +73,10 @@ export function Shell({
             <h1>{title}</h1>
             {subtitle && <p>{subtitle}</p>}
           </div>
-          {headerAction}
+          <div className="topbar-actions">
+            {headerAction}
+            {notifications}
+          </div>
         </header>
         <div className="workspace-body">{children}</div>
       </main>

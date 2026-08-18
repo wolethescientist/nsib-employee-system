@@ -177,6 +177,10 @@ function RecordEditor({
 }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [overriding, setOverriding] = useState(false)
+  // Once evidence is in play the status belongs to the verification queue, not
+  // to this form.
+  const locked = record.status === 'Completed' || record.status === 'Submitted'
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -187,7 +191,9 @@ function RecordEditor({
       await onSave({
         applicable: data.get('applicable') === 'on',
         priority: data.get('priority') || null,
-        status: data.get('status'),
+        // Completion is never set from this form — it comes from approving a
+        // certificate, or from the explicit no-evidence override below.
+        ...(locked ? {} : { status: data.get('status') }),
         plannedDate: data.get('plannedDate') || null,
         dueDate: data.get('dueDate') || null,
         comments: data.get('comments') || null,
@@ -222,13 +228,12 @@ function RecordEditor({
           </label>
           <label>
             Status
-            <select name="status" defaultValue={record.status}>
+            <select name="status" defaultValue={record.status === 'Submitted' || record.status === 'Completed' ? 'In progress' : record.status} disabled={locked}>
               <option value="Not started">Not started</option>
               <option value="Planned">Planned</option>
               <option value="In progress">In progress</option>
-              <option value="Submitted">Awaiting verification</option>
-              <option value="Completed">Completed</option>
             </select>
+            {locked && <small className="field-hint">{record.status === 'Completed' ? 'Completed — verified from the certificate.' : 'Awaiting certificate verification.'}</small>}
           </label>
           <label>
             Planned date
@@ -247,6 +252,18 @@ function RecordEditor({
           Comments
           <textarea name="comments" defaultValue={record.comments ?? ''} placeholder="Provider, cohort, location or anything else worth recording" />
         </label>
+
+        {!locked && (
+          <div className="inline-note">
+            <Icon name="check" size={14} />
+            <span>
+              This course is completed by approving the employee&rsquo;s certificate in <b>Certificates</b> — not from here.
+            </span>
+            <button type="button" className="text-button" onClick={() => setOverriding(true)}>
+              Completed without a certificate?
+            </button>
+          </div>
+        )}
 
         {certificate && (
           <div className="inline-note">
@@ -267,6 +284,67 @@ function RecordEditor({
           </button>
           <button type="submit" className="primary" disabled={saving}>
             {saving ? 'Saving…' : 'Save course'}
+          </button>
+        </div>
+      </form>
+      {overriding && (
+        <WithoutEvidence
+          course={record.course}
+          onClose={() => setOverriding(false)}
+          onConfirm={async reason => {
+            await onSave({ status: 'Completed', withoutEvidence: true, reason })
+          }}
+        />
+      )}
+    </Modal>
+  )
+}
+
+/**
+ * The deliberate exit hatch: paper certificates and training completed before
+ * the system existed still need recording. It asks for a reason, and the reason
+ * goes to the audit log under `completed_without_evidence`.
+ */
+function WithoutEvidence({ course, onClose, onConfirm }: { course: string; onClose: () => void; onConfirm: (reason: string) => Promise<void> }) {
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const reason = String(new FormData(event.currentTarget).get('reason') || '').trim()
+    if (!reason) {
+      setError('Give a reason — this is recorded against your name.')
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      await onConfirm(reason)
+    } catch (issue) {
+      setError(issue instanceof Error ? issue.message : 'Could not record the completion.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title="Record completion without a certificate" subtitle={course} onClose={onClose}>
+      <form className="form" onSubmit={submit}>
+        <div className="inline-note inline-note-alert">
+          <Icon name="alert" size={14} />
+          <span>Normally a course is completed by approving the certificate the employee uploads. Use this only where no certificate can be uploaded.</span>
+        </div>
+        <label>
+          Why is there no certificate?
+          <textarea name="reason" required autoFocus placeholder="e.g. Completed in 2019, paper certificate held in the personnel file." />
+          <small className="field-hint">Stored in the audit log against your account and the date.</small>
+        </label>
+        {error && <div className="form-error">{error}</div>}
+        <div className="form-actions">
+          <button type="button" className="secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="danger" disabled={saving}>
+            {saving ? 'Recording…' : 'Record as completed'}
           </button>
         </div>
       </form>

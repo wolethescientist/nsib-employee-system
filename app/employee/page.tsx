@@ -7,6 +7,8 @@ import { ProgrammePlan } from '@/components/ProgrammePlan'
 import { Empty, Icon, Modal, StatusPill, Toast } from '@/components/ui'
 import { daysToDeadline, formatMoney, formatWhen } from '@/lib/programme'
 import { downloadCsv, getJson, postForm } from '@/lib/client'
+import { Notifications } from '@/components/Notifications'
+import { employeeNotices } from '@/lib/notifications'
 import type { CertificateDocument, EmployeePlan, PlanRow } from '@/lib/types'
 
 const NAV: NavItem[] = [
@@ -85,6 +87,7 @@ export default function EmployeePortal() {
         onNavigate={setSection}
         title={section === 'plan' ? 'My development plan' : section === 'programmes' ? 'All programmes' : 'My training requests'}
         account={{ name: plan.employee.name, detail: plan.employee.designation || 'Staff', initials: plan.employee.initials, tone: plan.employee.tone }}
+        notifications={<Notifications notices={employeeNotices(plan)} userId={plan.me.id} onOpen={setSection} />}
         headerAction={
           <button type="button" className="ghost" onClick={() => downloadCsv('/api/plan/export', 'my-development-plan.csv')}>
             <Icon name="download" size={14} />

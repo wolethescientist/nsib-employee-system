@@ -127,19 +127,50 @@ export async function POST(request: Request) {
       if ('applicable' in payload) update.applicable = payload.applicable === true
       if ('priority' in payload) update.priority = ['P1', 'P2', 'P3', 'R'].includes(String(payload.priority)) ? payload.priority : null
       if ('status' in payload) {
-        if (!['Not started', 'Planned', 'In progress', 'Submitted', 'Completed'].includes(String(payload.status))) return fail('Unknown status.', 400)
+        if (!['Not started', 'Planned', 'In progress', 'Completed'].includes(String(payload.status))) {
+          // 'Submitted' is not settable by hand — only uploading a certificate produces it.
+          return fail('Unknown status.', 400)
+        }
+        // Completion is the end of the evidence chain, not a dropdown option. It
+        // needs either a certificate this office has approved, or an explicit,
+        // reasoned override that goes into the audit log. Without this an
+        // administrator could clear a course with two clicks and no evidence.
+        if (payload.status === 'Completed') {
+          const approved = await client
+            .from('training_documents')
+            .select('id')
+            .eq('training_record_id', id)
+            .eq('review_status', 'Approved')
+            .limit(1)
+          if (approved.error) throw approved.error
+          const reason = text(payload.reason)
+          if (!approved.data?.length) {
+            if (payload.withoutEvidence !== true || !reason) {
+              return fail('Approve the certificate to complete this course, or record it as completed without evidence and give a reason.', 409)
+            }
+            await logAudit(user.id, 'completed_without_evidence', 'training_record', id, { reason })
+          }
+          if (!payload.completedDate) update.completed_date = new Date().toISOString().slice(0, 10)
+        } else {
+          update.completed_date = null
+        }
         update.status = payload.status
-        if (payload.status === 'Completed' && !payload.completedDate) update.completed_date = new Date().toISOString().slice(0, 10)
-        if (payload.status !== 'Completed') update.completed_date = null
       }
       if ('plannedDate' in payload) update.planned_date = date(payload.plannedDate)
       if ('dueDate' in payload) update.due_date = date(payload.dueDate)
       if ('completedDate' in payload) update.completed_date = date(payload.completedDate)
       if ('comments' in payload) update.comments = text(payload.comments)
-      // Setting a planned date is what moves a course out of "Not started".
-      if (update.planned_date && !('status' in payload)) {
-        const current = await client.from('training_records').select('status').eq('id', id).maybeSingle()
-        if (current.data?.status === 'Not started') update.status = 'Planned'
+      // Scheduling a course is what moves it out of "Not started". This used to
+      // fire only when the caller omitted a status, so the edit form — which
+      // always sends one — left records reading "Not started" after a date had
+      // been set. Decide it from the resulting status instead, so every caller
+      // gets the same behaviour.
+      if (update.planned_date) {
+        const resulting =
+          'status' in payload
+            ? String(update.status)
+            : String((await client.from('training_records').select('status').eq('id', id).maybeSingle()).data?.status ?? '')
+        if (resulting === 'Not started') update.status = 'Planned'
       }
       const saved = await client.from('training_records').update(update).eq('id', id).select('id').maybeSingle()
       if (saved.error) throw saved.error

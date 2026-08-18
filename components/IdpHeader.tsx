@@ -40,7 +40,7 @@ export function IdpHeader({
     <header className="idp-header">
       <div className="idp-identity">
         <div className="idp-photo">
-          <Avatar name={employee.name} initials={employee.initials} tone={employee.tone} photoUrl={employee.photoUrl} size={112} />
+          <Avatar name={employee.name} initials={employee.initials} tone={employee.tone} photoUrl={employee.photoUrl} size={168} />
           {canEditPhoto && (
             <>
               <button type="button" className="photo-button" onClick={() => fileInput.current?.click()} disabled={uploading}>
@@ -94,6 +94,8 @@ export function IdpHeader({
         </div>
       </div>
 
+      {/* Two clean rows of three: who they are professionally, then where they
+          sit in the bureau. Email and qualifications run full width beneath. */}
       <dl className="idp-facts">
         <div>
           <dt>Profession</dt>
@@ -104,24 +106,24 @@ export function IdpHeader({
           <dd>{employee.license || <span className="fact-missing">Not recorded</span>}</dd>
         </div>
         <div>
+          <dt>Years of experience</dt>
+          <dd>{employee.yearsExperience ?? <span className="fact-missing">Not recorded</span>}</dd>
+        </div>
+        <div>
           <dt>Division</dt>
-          <dd>{employee.division || '—'}</dd>
+          <dd>{employee.division || <span className="fact-missing">Not recorded</span>}</dd>
         </div>
         <div>
           <dt>Department</dt>
-          <dd>{employee.department || '—'}</dd>
+          <dd>{employee.department || <span className="fact-missing">Not recorded</span>}</dd>
         </div>
         <div>
           <dt>Training profile</dt>
-          <dd>{employee.trainingProfile || '—'}</dd>
+          <dd>{employee.trainingProfile || <span className="fact-missing">Not recorded</span>}</dd>
         </div>
-        <div>
-          <dt>Years of experience</dt>
-          <dd>{employee.yearsExperience ?? '—'}</dd>
-        </div>
-        <div>
+        <div className="idp-facts-wide idp-facts-divider">
           <dt>Work email</dt>
-          <dd>{employee.email || '—'}</dd>
+          <dd>{employee.email || <span className="fact-missing">Not recorded</span>}</dd>
         </div>
         <div className="idp-facts-wide">
           <dt>Qualifications with dates</dt>
@@ -133,7 +135,7 @@ export function IdpHeader({
                 ))}
               </ul>
             ) : (
-              '—'
+              <span className="fact-missing">Not recorded</span>
             )}
           </dd>
         </div>

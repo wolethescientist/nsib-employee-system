@@ -1,23 +1,24 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Shell, type NavItem } from '@/components/Shell'
 import { IdpHeader } from '@/components/IdpHeader'
 import { ProgrammePlan } from '@/components/ProgrammePlan'
 import { Credentials } from '@/components/Credentials'
 import { OjtCharts } from '@/components/OjtCharts'
-import { DgPill, Empty, Icon, Modal, PriorityPill, StatusPill, Toast } from '@/components/ui'
+import { DgPill, Empty, Icon, PriorityPill, StatusPill, Toast } from '@/components/ui'
 import { daysToDeadline, formatMoney, formatWhen } from '@/lib/programme'
-import { downloadCsv, getJson, postForm } from '@/lib/client'
+import { downloadCsv, getJson } from '@/lib/client'
 import { Notifications } from '@/components/Notifications'
 import { employeeNotices } from '@/lib/notifications'
-import type { CertificateDocument, EmployeePlan, PlanRow } from '@/lib/types'
+import type { EmployeePlan } from '@/lib/types'
 
 const NAV: NavItem[] = [
   { key: 'plan', label: 'My plan', icon: 'plan' },
   { key: 'annual', label: 'My training year', icon: 'calendar' },
+  // The OJT progress chart lives under the OJT courses inside "All programmes"
+  // now, rather than as a section of its own.
   { key: 'programmes', label: 'All programmes', icon: 'catalogue' },
-  { key: 'ojt', label: 'My OJT chart', icon: 'check' },
   { key: 'qualifications', label: 'My qualifications', icon: 'award' },
   { key: 'requests', label: 'My requests', icon: 'stamp' },
 ]
@@ -26,7 +27,6 @@ const TITLE: Record<string, string> = {
   plan: 'My development plan',
   annual: 'My training year',
   programmes: 'All programmes',
-  ojt: 'My OJT progress chart',
   qualifications: 'My qualifications',
   requests: 'My training requests',
 }
@@ -35,7 +35,6 @@ export default function EmployeePortal() {
   const [plan, setPlan] = useState<EmployeePlan | null>(null)
   const [error, setError] = useState('')
   const [section, setSection] = useState('plan')
-  const [selected, setSelected] = useState<PlanRow | null>(null)
   const [toast, setToast] = useState('')
 
   const notify = useCallback((message: string) => {
@@ -88,8 +87,9 @@ export default function EmployeePortal() {
     .filter(record => record.plannedDate || record.dueDate || record.status !== 'Not started')
     .sort((a, b) => String(a.dueDate || '9999').localeCompare(String(b.dueDate || '9999')))
   const unscheduled = open.length - outstanding.length
+  // Left over from when staff submitted their own certificates. Training &
+  // Standards files them now, so this only ever holds old submissions.
   const submitted = applicable.filter(record => record.status === 'Submitted')
-  const returned = applicable.filter(record => record.reviewComment)
   const completed = applicable.filter(record => record.status === 'Completed')
 
   return (
@@ -112,32 +112,6 @@ export default function EmployeePortal() {
         {section === 'plan' && (
           <>
             <IdpHeader employee={plan.employee} progress={plan.progress} />
-
-            {returned.length > 0 && (
-              <section className="panel panel-alert">
-                <div className="panel-head">
-                  <div>
-                    <div className="eyebrow">Needs your attention</div>
-                    <h2>Certificates returned by Training &amp; Standards</h2>
-                  </div>
-                </div>
-                <div className="deadline-list">
-                  {returned.map(record => (
-                    <div className="deadline-row" key={record.id}>
-                      <span className="deadline-course">
-                        <strong>{record.course}</strong>
-                        <small className="plan-returned">
-                          <Icon name="alert" size={11} /> {record.reviewComment}
-                        </small>
-                      </span>
-                      <button type="button" className="primary" onClick={() => setSelected(record)}>
-                        Upload a replacement
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
 
             {submitted.length > 0 && (
               <section className="panel">
@@ -167,7 +141,10 @@ export default function EmployeePortal() {
                 <div>
                   <div className="eyebrow">Assigned to you</div>
                   <h2>Courses awaiting completion</h2>
-                  <p className="panel-note">Finish a course, then submit your certificate so it can be verified.</p>
+                  <p className="panel-note">
+                    Only the courses Training &amp; Standards has marked as applicable to you appear here. They record a course as complete once your certificate
+                  reaches them — there is nothing to upload.
+                  </p>
                 </div>
                 <span className="queue-count">{outstanding.length} open</span>
               </div>
@@ -196,9 +173,6 @@ export default function EmployeePortal() {
                             </span>
                           </>
                         )}
-                        <button type="button" className="primary" onClick={() => setSelected(record)}>
-                          Mark complete
-                        </button>
                       </div>
                     )
                   })}
@@ -261,10 +235,25 @@ export default function EmployeePortal() {
               <div>
                 <div className="eyebrow">Your training profile</div>
                 <h2>Programme types</h2>
-                <p className="panel-note">Open a programme type to see every course under it and where you stand on each.</p>
+                <p className="panel-note">
+                  Open a programme type to see the courses that apply to you and where you stand on each. Your OJT progress chart sits under the phase it belongs
+                  to.
+                </p>
               </div>
             </div>
-            <ProgrammePlan records={plan.records} onSelect={record => (record.applicable ? setSelected(record) : undefined)} />
+            <ProgrammePlan
+              records={plan.records}
+              // "Those that are not applicable to the person do not come to his
+              // dashboard. It is only what you have marked that the person has
+              // access to see."
+              showNotApplicable={false}
+              emptyMessage="No courses have been marked as applicable to you yet."
+              renderExtra={record =>
+                record.programmeType === 'OJT' ? (
+                  <OjtCharts charts={plan.ojtCharts.filter(chart => chart.courseId === record.courseId)} employeeName={plan.employee.name} course={{ id: record.courseId, name: record.course }} canSign={false} />
+                ) : null
+              }
+            />
           </section>
         )}
 
@@ -286,6 +275,7 @@ export default function EmployeePortal() {
                     <span>Course title</span>
                     <span>Institution / country</span>
                     <span>Date</span>
+                    <span>Duration</span>
                     <span>Pri.</span>
                     <span>Training type</span>
                     <span>Course fee</span>
@@ -300,6 +290,7 @@ export default function EmployeePortal() {
                       </span>
                       <span className="annual-where">{line.institution || '—'}</span>
                       <span className="annual-when">{line.trainingDates || '—'}</span>
+                      <span className="annual-when">{line.duration || '—'}</span>
                       <span>
                         <PriorityPill priority={line.priority} />
                       </span>
@@ -316,19 +307,6 @@ export default function EmployeePortal() {
             ) : (
               <Empty title="You are not on an annual training plan yet" detail="Training & Standards builds the year's plan and sends it to the Director General." />
             )}
-          </section>
-        )}
-
-        {section === 'ojt' && (
-          <section className="panel">
-            <div className="panel-head">
-              <div>
-                <div className="eyebrow">On-the-job training</div>
-                <h2>OJT progress chart</h2>
-                <p className="panel-note">Signed off by your instructor at three levels: I discuss, II observe and assist, III perform.</p>
-              </div>
-            </div>
-            <OjtCharts charts={plan.ojtCharts} employeeName={plan.employee.name} canSign={false} />
           </section>
         )}
 
@@ -382,128 +360,7 @@ export default function EmployeePortal() {
         )}
       </Shell>
 
-      {selected && (
-        <CompleteCourse
-          record={selected}
-          certificate={documentFor(selected.id)}
-          onClose={() => setSelected(null)}
-          onDone={async message => {
-            await load()
-            setSelected(null)
-            notify(message)
-          }}
-        />
-      )}
       <Toast message={toast} />
     </>
-  )
-}
-
-/** "I have finished this" — attach the certificate and send it for verification. */
-function CompleteCourse({
-  record,
-  certificate,
-  onClose,
-  onDone,
-}: {
-  record: PlanRow
-  certificate?: CertificateDocument
-  onClose: () => void
-  onDone: (message: string) => Promise<void>
-}) {
-  const [uploading, setUploading] = useState(false)
-  const [error, setError] = useState('')
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const form = new FormData(event.currentTarget)
-    form.set('trainingRecordId', record.id)
-    setUploading(true)
-    setError('')
-    try {
-      await postForm('/api/certificates/upload', form)
-      await onDone('Certificate submitted — Training & Standards will verify it.')
-    } catch (issue) {
-      setError(issue instanceof Error ? issue.message : 'Could not upload the certificate.')
-      setUploading(false)
-    }
-  }
-
-  const days = daysToDeadline(record.dueDate)
-
-  return (
-    <Modal title={record.course} subtitle={`${record.programmeType} programme`} onClose={onClose} wide>
-      <div className="course-facts">
-        <div>
-          <dt>Status</dt>
-          <dd>
-            <StatusPill status={record.displayStatus} />
-          </dd>
-        </div>
-        <div>
-          <dt>Planned</dt>
-          <dd>{formatWhen(record.plannedDate, record.plannedYear)}</dd>
-        </div>
-        <div>
-          <dt>Deadline</dt>
-          <dd className={days !== null && days < 0 ? 'deadline-late' : undefined}>
-            {formatWhen(record.dueDate, null)}
-            {days !== null && (days < 0 ? ` · ${Math.abs(days)} days late` : ` · ${days} days left`)}
-          </dd>
-        </div>
-        <div>
-          <dt>Priority</dt>
-          <dd>{record.priority || 'Not set'}</dd>
-        </div>
-      </div>
-
-      {record.reviewComment && (
-        <div className="inline-note inline-note-alert">
-          <Icon name="alert" size={14} />
-          <span>
-            <b>Returned by Training &amp; Standards:</b> {record.reviewComment}
-          </span>
-        </div>
-      )}
-
-      {certificate && certificate.reviewStatus === 'Pending' ? (
-        <div className="inline-note">
-          <Icon name="check" size={14} />
-          <span>
-            <b>{certificate.fileName}</b> has been submitted and is awaiting verification.
-          </span>
-          <a href={`/api/certificates/${certificate.id}`} target="_blank" rel="noreferrer">
-            Open
-          </a>
-        </div>
-      ) : (
-        <form className="form" onSubmit={submit}>
-          <div className="form-grid">
-            <label>
-              Date you completed the course
-              <input name="completedDate" type="date" required max={new Date().toISOString().slice(0, 10)} />
-            </label>
-            <label>
-              Certificate (PDF, JPG or PNG)
-              <input name="file" type="file" accept="application/pdf,image/jpeg,image/png" required />
-            </label>
-          </div>
-          <label>
-            Anything Training &amp; Standards should know
-            <textarea name="comments" placeholder="Optional — provider, cohort, or a note about the certificate." />
-          </label>
-          {error && <div className="form-error">{error}</div>}
-          <div className="form-actions">
-            <button type="button" className="secondary" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="primary" disabled={uploading}>
-              <Icon name="upload" size={14} />
-              {uploading ? 'Submitting…' : 'Submit certificate'}
-            </button>
-          </div>
-        </form>
-      )}
-    </Modal>
   )
 }

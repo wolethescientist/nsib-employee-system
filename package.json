@@ -10,7 +10,8 @@
     "lint": "next lint",
     "check": "node scripts/check-programme.mjs",
     "extract": "python scripts/extract-workbook.py",
-    "import": "node --env-file=.env.local scripts/import-idp.mjs"
+    "import": "node --env-file=.env.local scripts/import-idp.mjs",
+    "extract-orgs": "python scripts/extract-organisations.py"
   },
   "dependencies": {
     "next": "14.2.5",

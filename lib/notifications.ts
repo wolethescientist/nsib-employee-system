@@ -21,22 +21,13 @@ export type Notice = {
 
 const DUE_SOON_DAYS = 21
 
-/** Training & Standards: evidence to verify, and decisions to act on. */
+/**
+ * Training & Standards: the Director General's decisions, and what they leave to
+ * be done. The certificate queue that used to head this list is gone —
+ * certificates reach the bureau through this office and are filed complete.
+ */
 export function adminNotices(directory: Directory): Notice[] {
   const notices: Notice[] = []
-
-  for (const document of directory.documents) {
-    if (document.reviewStatus !== 'Pending') continue
-    notices.push({
-      id: `cert-${document.id}`,
-      tone: 'action',
-      icon: 'catalogue',
-      title: `${document.employee || 'A member of staff'} has submitted a certificate`,
-      detail: `${document.course || 'Training evidence'} — open it and approve or return it.`,
-      section: 'certificates',
-      when: document.createdAt,
-    })
-  }
 
   for (const request of directory.requests) {
     if (request.status === 'Approved' && !request.assignedRecordId) {
@@ -74,6 +65,19 @@ export function adminNotices(directory: Directory): Notice[] {
         detail: `${line.courseTitle} for ${line.employee || 'staff'} — ${[line.dgInstitution && `move it to ${line.dgInstitution}`, line.dgDelivery && `deliver it ${line.dgDelivery.toLowerCase()}`, line.dgComment && `“${line.dgComment}”`]
           .filter(Boolean)
           .join(', ')}`,
+        section: 'annual',
+        when: line.dgDecidedAt,
+      })
+    }
+    // Approved and still not on anybody's plan: "it is from that plan that I
+    // come and select, and I say planned."
+    if (line.dgStatus === 'Approved' && !line.assignedRecordId) {
+      notices.push({
+        id: `planapproved-${line.id}-${line.dgDecidedAt ?? ''}`,
+        tone: 'good',
+        icon: 'calendar',
+        title: 'The Director General approved a course on the plan',
+        detail: `${line.courseTitle} for ${line.employee || 'staff'} — put it on their plan.`,
         section: 'annual',
         when: line.dgDecidedAt,
       })
@@ -140,26 +144,16 @@ export function employeeNotices(plan: EmployeePlan): Notice[] {
     if (!record.applicable) continue
     const certificate = documentFor(record.id)
 
-    if (record.reviewComment && certificate?.reviewStatus === 'Returned') {
+    // Certificates are filed by Training & Standards, so there is never anything
+    // here for a member of staff to do about one — only the news that a course
+    // is now on their record.
+    if (record.status === 'Completed' && certificate) {
       notices.push({
-        id: `returned-${certificate.id}`,
-        tone: 'warn',
-        icon: 'alert',
-        title: 'Your certificate was returned',
-        detail: `${record.course} — “${record.reviewComment}” Upload a replacement.`,
-        section: 'plan',
-        when: certificate.createdAt,
-      })
-      continue
-    }
-
-    if (record.status === 'Completed' && certificate?.reviewStatus === 'Approved') {
-      notices.push({
-        id: `approved-${certificate.id}`,
+        id: `recorded-${certificate.id}`,
         tone: 'good',
         icon: 'check',
-        title: 'Your certificate was approved',
-        detail: `${record.course} is now recorded as complete.`,
+        title: 'A course was recorded as complete',
+        detail: `${record.course} — the certificate is on your record.`,
         section: 'plan',
         when: certificate.createdAt,
       })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { ReactNode, useMemo, useState } from 'react'
 import { Icon, PriorityPill, StatusPill } from '@/components/ui'
 import { PRIORITIES, displayStatus, formatWhen, groupByProgramme, type ProgrammeType } from '@/lib/programme'
 import type { PlanRow } from '@/lib/types'
@@ -18,21 +18,27 @@ export function ProgrammePlan({
   onSelect,
   emptyMessage = 'No courses recorded.',
   showNotApplicable = true,
+  renderExtra,
 }: {
   records: PlanRow[]
   onSelect?: (record: PlanRow) => void
   emptyMessage?: string
   showNotApplicable?: boolean
+  /**
+   * Content that belongs to one course rather than beside it — the OJT progress
+   * chart under OJT 1, OJT 2 and OJT 3. The Director General: "that progress
+   * chart is not a course on its own, it is the content of OJT 1, 2 and 3. If
+   * the auditor asks what did they do in your OJT, it has to be here, not going
+   * to another place."
+   */
+  renderExtra?: (record: PlanRow) => ReactNode
 }) {
   const visible = useMemo(() => (showNotApplicable ? records : records.filter(record => record.applicable)), [records, showNotApplicable])
   const groups = useMemo(() => groupByProgramme(visible), [visible])
 
-  // Open the first group that still needs attention, so the page lands on
-  // something useful rather than a wall of collapsed headers.
-  const [open, setOpen] = useState<ProgrammeType[]>(() => {
-    const needsWork = groups.find(group => group.items.some(record => record.applicable && record.status !== 'Completed'))
-    return needsWork ? [needsWork.type as ProgrammeType] : groups.slice(0, 1).map(group => group.type as ProgrammeType)
-  })
+  // Everything closed on arrival: "once you open this page, by default all of
+  // them is closed — you click before you see them."
+  const [open, setOpen] = useState<ProgrammeType[]>([])
 
   const toggle = (type: ProgrammeType) => setOpen(current => (current.includes(type) ? current.filter(item => item !== type) : [...current, type]))
 
@@ -101,42 +107,45 @@ export function ProgrammePlan({
                   </div>
                   {group.items.map(record => {
                     const RowTag = onSelect ? 'button' : 'div'
+                    const extra = renderExtra?.(record)
                     return (
-                      <RowTag
-                        key={record.id}
-                        type={onSelect ? 'button' : undefined}
-                        role="row"
-                        className={`plan-row${record.applicable ? '' : ' plan-row-muted'}${onSelect ? ' plan-row-clickable' : ''}`}
-                        onClick={onSelect ? () => onSelect(record) : undefined}
-                      >
-                        <span role="cell" className="plan-no">
-                          {record.sortOrder}
-                        </span>
-                        <span role="cell" className="plan-course">
-                          <strong>{record.course}</strong>
-                          {record.comments && <small>{record.comments}</small>}
-                          {record.reviewComment && (
-                            <small className="plan-returned">
-                              <Icon name="alert" size={11} /> Returned: {record.reviewComment}
-                            </small>
-                          )}
-                        </span>
-                        <span role="cell">
-                          <PriorityPill priority={record.priority} />
-                        </span>
-                        <span role="cell" className="plan-when">
-                          {formatWhen(record.plannedDate, record.plannedYear)}
-                        </span>
-                        <span role="cell">
-                          <StatusPill status={record.displayStatus} />
-                        </span>
-                        <span role="cell" className="plan-when">
-                          {formatWhen(record.completedDate, record.completedYear)}
-                        </span>
-                        <span role="cell" className={record.applicable ? 'plan-applicable' : 'plan-not-applicable'}>
-                          {record.applicable ? 'Applicable' : 'Not applicable'}
-                        </span>
-                      </RowTag>
+                      <div key={record.id} className="plan-entry">
+                        <RowTag
+                          type={onSelect ? 'button' : undefined}
+                          role="row"
+                          className={`plan-row${record.applicable ? '' : ' plan-row-muted'}${onSelect ? ' plan-row-clickable' : ''}`}
+                          onClick={onSelect ? () => onSelect(record) : undefined}
+                        >
+                          <span role="cell" className="plan-no">
+                            {record.sortOrder}
+                          </span>
+                          <span role="cell" className="plan-course">
+                            <strong>{record.course}</strong>
+                            {record.comments && <small>{record.comments}</small>}
+                            {record.reviewComment && (
+                              <small className="plan-returned">
+                                <Icon name="alert" size={11} /> Returned: {record.reviewComment}
+                              </small>
+                            )}
+                          </span>
+                          <span role="cell">
+                            <PriorityPill priority={record.priority} />
+                          </span>
+                          <span role="cell" className="plan-when">
+                            {formatWhen(record.plannedDate, record.plannedYear)}
+                          </span>
+                          <span role="cell">
+                            <StatusPill status={record.displayStatus} />
+                          </span>
+                          <span role="cell" className="plan-when">
+                            {formatWhen(record.completedDate, record.completedYear)}
+                          </span>
+                          <span role="cell" className={record.applicable ? 'plan-applicable' : 'plan-not-applicable'}>
+                            {record.applicable ? 'Applicable' : 'Not applicable'}
+                          </span>
+                        </RowTag>
+                        {extra ? <div className="plan-row-extra">{extra}</div> : null}
+                      </div>
                     )
                   })}
                 </div>

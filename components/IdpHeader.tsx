@@ -2,12 +2,20 @@
 
 import { useRef, useState } from 'react'
 import { Avatar, Icon, ProgressBar } from '@/components/ui'
+import { directorateLabel, normaliseDirectorate } from '@/lib/org'
 import type { Employee, Progress } from '@/lib/types'
 
 /**
- * The header block of the IDP sheet: photograph, name, designation, division,
- * department, training profile, years of experience and qualifications —
- * laid out in the same order the workbook lists them.
+ * The header block of the IDP sheet: photograph, name, designation, directorate,
+ * specialty, years of experience and qualifications — laid out in the same order
+ * the workbook lists them.
+ *
+ * `analysisHidden` is the Director General's instruction, not a preference. A
+ * completion figure shown beside somebody's name is read by an auditor as a
+ * score: "why is this 33%?" It is not one — nobody attends every course on a
+ * 43-course catalogue, and the recurrent ones run on multi-year cycles. So the
+ * figure is kept, and kept out of sight until it is asked for: "it's good to be
+ * there, but I don't want to show him. If he requests it, I can pop it out."
  */
 export function IdpHeader({
   employee,
@@ -15,15 +23,18 @@ export function IdpHeader({
   canEditPhoto = false,
   onPhotoChange,
   actions,
+  analysisHidden = false,
 }: {
   employee: Employee
   progress: Progress
   canEditPhoto?: boolean
   onPhotoChange?: (file: File) => Promise<void>
   actions?: React.ReactNode
+  analysisHidden?: boolean
 }) {
   const fileInput = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [showAnalysis, setShowAnalysis] = useState(!analysisHidden)
 
   async function pickPhoto(file?: File | null) {
     if (!file || !onPhotoChange) return
@@ -68,7 +79,7 @@ export function IdpHeader({
           <div className="idp-tags">
             {employee.profession && <span className="tag tag-profession">{employee.profession}</span>}
             {employee.personnelLevel && <span className="tag tag-level">{employee.personnelLevel}</span>}
-            {employee.trainingProfile && <span className="tag">{employee.trainingProfile} profile</span>}
+            {employee.specialty && <span className="tag">{employee.specialty}</span>}
             {employee.license && <span className="tag">Licence {employee.license}</span>}
             {employee.yearsExperience !== null && employee.yearsExperience !== undefined && (
               <span className="tag">{employee.yearsExperience} yrs experience</span>
@@ -76,23 +87,45 @@ export function IdpHeader({
           </div>
         </div>
 
-        <div className="idp-progress">
-          <strong>{progress.percent}%</strong>
-          <span>of applicable courses complete</span>
-          <ProgressBar percent={progress.percent} />
-          <div className="idp-progress-split">
-            <span>
-              <b>{progress.completed}</b> completed
-            </span>
-            <span>
-              <b>{progress.outstanding}</b> outstanding
-            </span>
-            <span className={progress.overdue ? 'is-overdue' : ''}>
-              <b>{progress.overdue}</b> overdue
-            </span>
+        {showAnalysis ? (
+          <div className="idp-progress">
+            {analysisHidden && (
+              <button type="button" className="idp-analysis-hide" onClick={() => setShowAnalysis(false)}>
+                <Icon name="chevron" size={13} />
+                Hide
+              </button>
+            )}
+            <strong>{progress.percent}%</strong>
+            <span>of applicable courses complete</span>
+            <ProgressBar percent={progress.percent} />
+            <div className="idp-progress-split">
+              <span>
+                <b>{progress.completed}</b> completed
+              </span>
+              <span>
+                <b>{progress.outstanding}</b> outstanding
+              </span>
+              <span className={progress.overdue ? 'is-overdue' : ''}>
+                <b>{progress.overdue}</b> overdue
+              </span>
+            </div>
+            {analysisHidden && (
+              <small className="idp-analysis-note">
+                Counted against the {progress.applicable} courses that apply to this member of staff, not the full catalogue.
+              </small>
+            )}
+            {actions}
           </div>
-          {actions}
-        </div>
+        ) : (
+          <div className="idp-progress idp-progress-hidden">
+            <button type="button" className="idp-analysis-show" onClick={() => setShowAnalysis(true)}>
+              <Icon name="chart" size={15} />
+              Show completion analysis
+            </button>
+            <small>Hidden by default. The figure counts only the courses that apply to this member of staff.</small>
+            {actions}
+          </div>
+        )}
       </div>
 
       {/* Two clean rows of three: who they are professionally, then where they
@@ -115,16 +148,27 @@ export function IdpHeader({
           <dd>{employee.yearsExperience ?? <span className="fact-missing">Not recorded</span>}</dd>
         </div>
         <div>
-          <dt>Division</dt>
-          <dd>{employee.division || <span className="fact-missing">Not recorded</span>}</dd>
+          <dt>Directorate</dt>
+          <dd>
+            {employee.division ? (
+              <>
+                {directorateLabel(employee.division)}
+                {/* Recorded as something that is not one of the five — say so
+                    rather than quietly showing a directorate that was abolished. */}
+                {!normaliseDirectorate(employee.division) && <small className="fact-note">recorded as &ldquo;{employee.division}&rdquo; — needs assigning</small>}
+              </>
+            ) : (
+              <span className="fact-missing">Not recorded</span>
+            )}
+          </dd>
         </div>
         <div>
-          <dt>Department</dt>
+          <dt>Unit</dt>
           <dd>{employee.department || <span className="fact-missing">Not recorded</span>}</dd>
         </div>
         <div>
-          <dt>Training profile</dt>
-          <dd>{employee.trainingProfile || <span className="fact-missing">Not recorded</span>}</dd>
+          <dt>Specialty</dt>
+          <dd>{employee.specialty || <span className="fact-missing">Not recorded</span>}</dd>
         </div>
         <div className="idp-facts-wide idp-facts-divider">
           <dt>Work email</dt>

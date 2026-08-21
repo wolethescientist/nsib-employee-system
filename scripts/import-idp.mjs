@@ -77,7 +77,7 @@ const employeeRows = dataset.employees.map(employee => ({
   division: employee.division,
   department: employee.department,
   profession: storedProfession.get(employee.key) ?? employee.profession,
-  training_profile: employee.training_profile,
+  specialty: employee.training_profile,
   years_experience: employee.years_experience,
   qualifications: employee.qualifications,
   license: employee.license,

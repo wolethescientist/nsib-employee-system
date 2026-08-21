@@ -1,6 +1,7 @@
 // Shared server-side mapping between Supabase rows and the shapes the UI reads.
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { displayStatus, planProgress, toneFor, type Priority, type StoredStatus } from '@/lib/programme'
+import { rankOf } from '@/lib/org'
 
 export const db = () => supabaseAdmin() as any
 export const photoBucket = () => process.env.PHOTO_BUCKET || 'nsib-photos'
@@ -15,7 +16,7 @@ export type EmployeeRow = {
   department: string | null
   profession: string | null
   personnel_level: string | null
-  training_profile: string | null
+  specialty: string | null
   years_experience: number | null
   qualifications: string | null
   license: string | null
@@ -24,7 +25,7 @@ export type EmployeeRow = {
 }
 
 export const EMPLOYEE_COLUMNS =
-  'id, sheet_key, name, initials, designation, division, department, profession, personnel_level, training_profile, years_experience, qualifications, license, email, photo_path'
+  'id, sheet_key, name, initials, designation, division, department, profession, personnel_level, specialty, years_experience, qualifications, license, email, photo_path'
 
 export const RECORD_COLUMNS =
   'id, employee_id, course_id, applicable, priority, status, planned_date, planned_year, due_date, completed_date, completed_year, comments, review_comment, updated_at'
@@ -67,7 +68,7 @@ export function mapEmployee(row: EmployeeRow, photoUrl?: string) {
     department: row.department,
     profession: row.profession,
     personnelLevel: row.personnel_level,
-    trainingProfile: row.training_profile,
+    specialty: row.specialty,
     yearsExperience: row.years_experience,
     // The workbook keeps qualifications as one comma-separated string.
     qualifications: (row.qualifications || '')
@@ -167,7 +168,7 @@ export function mapRequest(row: any) {
 }
 
 export const ANNUAL_PLAN_COLUMNS =
-  'id, employee_id, year, serial, course_title, institution, training_dates, priority, training_type, cost, currency, delivery, dg_status, dg_institution, dg_delivery, dg_comment, dg_decided_at'
+  'id, employee_id, year, serial, course_title, institution, training_dates, duration, priority, training_type, cost, currency, delivery, course_id, assigned_record_id, dg_status, dg_institution, dg_delivery, dg_comment, dg_decided_at'
 
 export function mapAnnualItem(row: any) {
   return {
@@ -181,9 +182,12 @@ export function mapAnnualItem(row: any) {
     trainingDates: row.training_dates,
     priority: row.priority,
     trainingType: row.training_type,
+    duration: row.duration,
     cost: row.cost === null || row.cost === undefined ? null : Number(row.cost),
     currency: row.currency,
     delivery: row.delivery,
+    courseId: row.course_id ?? null,
+    assignedRecordId: row.assigned_record_id ?? null,
     dgStatus: row.dg_status,
     dgInstitution: row.dg_institution,
     dgDelivery: row.dg_delivery,
@@ -223,6 +227,7 @@ export function mapOjtChart(row: any) {
   return {
     id: row.id,
     employeeId: row.employee_id,
+    courseId: row.course_id ?? null,
     title: row.title,
     gradeLevel: row.grade_level,
     supervisor: row.supervisor,
@@ -232,6 +237,21 @@ export function mapOjtChart(row: any) {
     tasks: (row.ojt_tasks || []).map(mapOjtTask).sort((a: any, b: any) => a.sortOrder - b.sortOrder),
   }
 }
+
+export const ORGANISATION_COLUMNS = 'id, serial, name, website, email, phone, contact, address, courses, notes'
+
+export const mapOrganisation = (row: any) => ({
+  id: row.id,
+  serial: row.serial,
+  name: row.name,
+  website: row.website,
+  email: row.email,
+  phone: row.phone,
+  contact: row.contact,
+  address: row.address,
+  courses: row.courses,
+  notes: row.notes,
+})
 
 /** Per-employee completion, computed from the applicable rows only. */
 export function progressByEmployee(records: { employee_id: string; applicable: boolean; status: StoredStatus; due_date: string | null }[]) {
@@ -247,6 +267,14 @@ export function progressByEmployee(records: { employee_id: string; applicable: b
 export async function logAudit(actorId: string, action: string, entityType: string, entityId: string | null, metadata: Record<string, unknown> = {}) {
   await db().from('audit_logs').insert({ actor_id: actorId, action, entity_type: entityType, entity_id: entityId, metadata })
 }
+
+/**
+ * The register in civil-service order: the DG first, then directors, then the
+ * rest. Sorting alphabetically put a director in the middle of the investigators,
+ * which is what the Director General objected to at review.
+ */
+export const byHierarchy = (a: { name: string; designation: string | null; personnelLevel: string | null }, b: typeof a) =>
+  rankOf(a.designation, a.personnelLevel) - rankOf(b.designation, b.personnelLevel) || a.name.localeCompare(b.name)
 
 export const isAdmin = (role?: string) => ['admin', 'training_manager', 'supervisor'].includes(String(role))
 export const isDirector = (role?: string) => String(role) === 'director'

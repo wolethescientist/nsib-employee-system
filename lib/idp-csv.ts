@@ -20,7 +20,7 @@ export type CsvEmployee = {
   division?: string | null
   department?: string | null
   profession?: string | null
-  trainingProfile?: string | null
+  specialty?: string | null
   yearsExperience?: number | null
   qualifications?: string | null
   license?: string | null
@@ -65,8 +65,10 @@ function planBlock(employee: CsvEmployee, records: CsvRecord[]): string[][] {
     row({ B: 'NAME OF STAFF:', D: employee.name, F: 'PROFESSION:', H: employee.profession }),
     row({ B: 'DESIGNATION:', D: employee.designation, F: 'LICENCE NUMBER:', H: employee.license }),
     row({ B: 'DIVISION:', D: employee.division }),
-    row({ B: 'DEPARTMENT:', D: employee.department }),
-    row({ B: 'Training Profile(s)', D: employee.trainingProfile }),
+    // "Department" on the sheet is the directorate, and "Training Profile(s)" is
+    // the specialty — both renamed at the Director General's review.
+    row({ B: 'DIRECTORATE:', D: employee.department }),
+    row({ B: 'SPECIALTY:', D: employee.specialty }),
     row({ B: 'Years of Experience:', D: employee.yearsExperience }),
     row({ B: `QUALIFICATIONS WITH DATES${employee.qualifications ? `; ${employee.qualifications}` : ''}` }),
     row({

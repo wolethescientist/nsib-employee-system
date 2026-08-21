@@ -3,12 +3,12 @@
 import { FormEvent, useMemo, useState } from 'react'
 import { Avatar, DgPill, Empty, Icon, Modal, PriorityPill } from '@/components/ui'
 import { CURRENCIES, DELIVERY_MODES, PRIORITIES, TRAINING_TYPES, formatMoney } from '@/lib/programme'
-import type { AnnualPlanItem, DirectoryEmployee } from '@/lib/types'
+import type { AnnualPlanItem, Course, DirectoryEmployee } from '@/lib/types'
 
 type Decision = 'Approved' | 'Rejected' | 'Amended'
 
 /**
- * The annual training plan sheet, one year at a time: every member of staff,
+ * The annual training plan sheet, one year at a time: every investigator,
  * every course they are down for, where, when, how much — and the Director
  * General's column beside each line.
  *
@@ -21,12 +21,15 @@ export function AnnualPlan({
   items,
   years,
   employees,
+  courses,
   role,
   onSave,
 }: {
   items: AnnualPlanItem[]
   years: number[]
   employees: DirectoryEmployee[]
+  /** Needed to turn an approved line into a course on somebody's plan. */
+  courses: Course[]
   role: string
   onSave: (action: string, payload: Record<string, unknown>, message?: string) => Promise<void>
 }) {
@@ -39,6 +42,7 @@ export function AnnualPlan({
   const [onlyPending, setOnlyPending] = useState(isDirector)
   const [deciding, setDeciding] = useState<{ item: AnnualPlanItem; decision: Decision } | null>(null)
   const [editing, setEditing] = useState<{ item: AnnualPlanItem | null } | null>(null)
+  const [assigning, setAssigning] = useState<AnnualPlanItem | null>(null)
   const [busy, setBusy] = useState('')
 
   const yearOptions = useMemo(() => Array.from(new Set([...years, thisYear, thisYear + 1])).sort((a, b) => b - a), [years, thisYear])
@@ -94,13 +98,13 @@ export function AnnualPlan({
         </label>
         <div className="search">
           <Icon name="search" size={15} />
-          <input value={filter} onChange={event => setFilter(event.target.value)} placeholder="Find a member of staff" aria-label="Find a member of staff" />
+          <input value={filter} onChange={event => setFilter(event.target.value)} placeholder="Find an investigator" aria-label="Find an investigator" />
         </div>
         <button type="button" className={onlyPending ? 'chip active' : 'chip'} onClick={() => setOnlyPending(value => !value)}>
           Awaiting the DG{pending ? ` (${pending})` : ''}
         </button>
         <span className="toolbar-count">
-          {shown.length} {shown.length === 1 ? 'course' : 'courses'} · {groups.length} staff
+          {shown.length} {shown.length === 1 ? 'course' : 'courses'} · {groups.length} investigators
           {totals.length ? ` · ${totals.join(' + ')}` : ''}
         </span>
         {!isDirector && (
@@ -145,6 +149,7 @@ export function AnnualPlan({
                   <span>Course title</span>
                   <span>Institution / country</span>
                   <span>Date</span>
+                  <span>Duration</span>
                   <span>Pri.</span>
                   <span>Training type</span>
                   <span>Course fee</span>
@@ -169,6 +174,7 @@ export function AnnualPlan({
                       )}
                     </span>
                     <span className="annual-when">{line.trainingDates || '—'}</span>
+                    <span className="annual-when">{line.duration || '—'}</span>
                     <span>
                       <PriorityPill priority={line.priority} />
                     </span>
@@ -204,6 +210,18 @@ export function AnnualPlan({
                               {busy === line.id ? 'Applying…' : 'Apply amendment'}
                             </button>
                           )}
+                          {/* "After approval, it is from that plan that I come and
+                              select — and I say planned." */}
+                          {line.dgStatus === 'Approved' &&
+                            (line.assignedRecordId ? (
+                              <small className="annual-assigned">
+                                <Icon name="check" size={12} /> On their plan
+                              </small>
+                            ) : (
+                              <button type="button" className="primary" onClick={() => setAssigning(line)}>
+                                Put on their plan
+                              </button>
+                            ))}
                           <button type="button" className="text-button" onClick={() => setEditing({ item: line })}>
                             Edit
                           </button>
@@ -239,11 +257,24 @@ export function AnnualPlan({
         />
       )}
 
+      {assigning && (
+        <AssignLine
+          item={assigning}
+          courses={courses}
+          onClose={() => setAssigning(null)}
+          onSubmit={async payload => {
+            await onSave('assign_from_plan_item', { id: assigning.id, ...payload }, 'On their plan — the investigator can see it now.')
+            setAssigning(null)
+          }}
+        />
+      )}
+
       {editing && (
         <EditLine
           item={editing.item}
           year={year}
           employees={employees}
+          courses={courses}
           onClose={() => setEditing(null)}
           onSubmit={async payload => {
             await onSave('upsert_plan_item', payload, editing.item ? 'Plan line saved.' : 'Course added to the plan.')
@@ -260,6 +291,99 @@ export function AnnualPlan({
         />
       )}
     </>
+  )
+}
+
+/**
+ * Taking an approved line of the plan onto somebody's development plan.
+ *
+ * The Director General described the annual plan as the paperwork it replaces —
+ * every name with their courses, the cost, the dates and the duration — and then
+ * the step that follows it: "after approval, it is from that plan that I come
+ * and select, and I say planned." This is that step, made explicit.
+ */
+function AssignLine({
+  item,
+  courses,
+  onClose,
+  onSubmit,
+}: {
+  item: AnnualPlanItem
+  courses: Course[]
+  onClose: () => void
+  onSubmit: (payload: Record<string, unknown>) => Promise<void>
+}) {
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  // The plan sheet is free text; a training record needs a catalogue course. If
+  // the title matches one outright there is nothing to ask.
+  const matched = useMemo(
+    () => courses.find(course => course.id === item.courseId) || courses.find(course => course.name.toLowerCase() === item.courseTitle.trim().toLowerCase()),
+    [courses, item],
+  )
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    setSaving(true)
+    setError('')
+    try {
+      await onSubmit(Object.fromEntries(data.entries()))
+    } catch (issue) {
+      setError(issue instanceof Error ? issue.message : 'Could not put this on their plan.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title="Put this on their plan" subtitle={`${item.courseTitle} · ${item.employee ?? 'staff'}`} onClose={onClose}>
+      <form className="form" onSubmit={submit}>
+        <div className="inline-note">
+          <Icon name="check" size={14} />
+          <span>
+            Approved by the Director General{item.dgDecidedAt ? ` on ${new Date(item.dgDecidedAt).toLocaleDateString('en-GB')}` : ''}. The institution, dates,
+            duration and approved cost are copied onto the course as a note.
+          </span>
+        </div>
+
+        <label>
+          Catalogue course
+          <select name="courseId" defaultValue={matched?.id ?? ''} required>
+            <option value="" disabled>
+              Choose the course
+            </option>
+            {courses.map(course => (
+              <option key={course.id} value={course.id}>
+                {course.name} — {course.programmeType}
+              </option>
+            ))}
+          </select>
+          {!matched && <small className="field-hint">Nothing in the catalogue matches this title, so pick the course it corresponds to.</small>}
+        </label>
+
+        <div className="form-grid">
+          <label>
+            Start date
+            <input type="date" name="plannedDate" />
+          </label>
+          <label>
+            Deadline
+            <input type="date" name="dueDate" />
+          </label>
+        </div>
+
+        {error && <div className="form-error">{error}</div>}
+        <div className="form-actions">
+          <button type="button" className="secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="primary" disabled={saving}>
+            {saving ? 'Saving…' : 'Put on their plan'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 
@@ -371,6 +495,7 @@ function EditLine({
   item,
   year,
   employees,
+  courses,
   onClose,
   onSubmit,
   onDelete,
@@ -378,6 +503,7 @@ function EditLine({
   item: AnnualPlanItem | null
   year: number
   employees: DirectoryEmployee[]
+  courses: Course[]
   onClose: () => void
   onSubmit: (payload: Record<string, unknown>) => Promise<void>
   onDelete?: () => Promise<void>
@@ -404,10 +530,10 @@ function EditLine({
       <form className="form" onSubmit={submit}>
         <div className="form-grid">
           <label>
-            Member of staff
+            Investigator
             <select name="employeeId" defaultValue={item?.employeeId ?? ''} required disabled={Boolean(item)}>
               <option value="" disabled>
-                Select staff
+                Select an investigator
               </option>
               {employees.map(employee => (
                 <option key={employee.id} value={employee.id}>
@@ -433,6 +559,19 @@ function EditLine({
           <input name="courseTitle" defaultValue={item?.courseTitle ?? ''} required placeholder="e.g. Applied Rail Accident Investigation" />
         </label>
 
+        <label>
+          Catalogue course it corresponds to
+          <select name="courseId" defaultValue={item?.courseId ?? ''}>
+            <option value="">Not linked yet</option>
+            {courses.map(course => (
+              <option key={course.id} value={course.id}>
+                {course.name} — {course.programmeType}
+              </option>
+            ))}
+          </select>
+          <small className="field-hint">Linking it now means the approved line can be put straight onto their plan.</small>
+        </label>
+
         <div className="form-grid">
           <label>
             Institution / country
@@ -442,6 +581,12 @@ function EditLine({
             Date
             <input name="trainingDates" defaultValue={item?.trainingDates ?? ''} placeholder="e.g. 6–24 July 2026, or TBD" />
             <small className="field-hint">Free text — the sheet holds ranges, bare years and TBD alike.</small>
+          </label>
+          {/* "Everybody's name with the courses, with the amount, the time, the
+              duration." Dates and duration answer different questions. */}
+          <label>
+            Duration
+            <input name="duration" defaultValue={item?.duration ?? ''} placeholder="e.g. 5 days, 2 weeks" />
           </label>
           <label>
             Priority

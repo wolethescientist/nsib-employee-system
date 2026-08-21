@@ -54,7 +54,7 @@ export function RequestsBoard({
       <header>
         <div>
           <strong>{request.courseTitle}</strong>
-          <small>{request.employee || 'Unknown staff'}</small>
+          <small>{request.employee || 'Unknown investigator'}</small>
         </div>
         <span className={`pill request-${request.status.toLowerCase()}`}>{request.status}</span>
       </header>
@@ -216,10 +216,10 @@ function CreateRequest({
       <form className="form" onSubmit={submit}>
         <div className="form-grid">
           <label>
-            Member of staff
+            Investigator
             <select name="employeeId" required defaultValue="">
               <option value="" disabled>
-                Select staff
+                Select an investigator
               </option>
               {employees.map(employee => (
                 <option key={employee.id} value={employee.id}>
@@ -297,7 +297,7 @@ function CreateRequest({
 
         <label>
           Justification for the Director General
-          <textarea name="justification" placeholder="Why this training matters, what capability it builds, and why this member of staff." />
+          <textarea name="justification" placeholder="Why this training matters, what capability it builds, and why this investigator." />
         </label>
 
         {error && <div className="form-error">{error}</div>}

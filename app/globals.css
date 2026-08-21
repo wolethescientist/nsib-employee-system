@@ -2111,7 +2111,7 @@ button:disabled {
 }
 .annual-row {
   display: grid;
-  grid-template-columns: 46px minmax(220px, 1.5fr) minmax(150px, 1fr) 128px 52px 96px 104px minmax(210px, 1fr);
+  grid-template-columns: 46px minmax(200px, 1.4fr) minmax(140px, 1fr) 118px 84px 52px 92px 100px minmax(200px, 1fr);
   align-items: start;
   gap: 12px;
   padding: 14px 20px;
@@ -2119,7 +2119,7 @@ button:disabled {
   font-size: 13.5px;
 }
 .annual-table-compact .annual-row {
-  grid-template-columns: 58px minmax(200px, 1.4fr) minmax(140px, 1fr) 120px 52px 92px 100px minmax(160px, 0.8fr);
+  grid-template-columns: 58px minmax(190px, 1.3fr) minmax(130px, 1fr) 112px 80px 52px 88px 96px minmax(150px, 0.8fr);
 }
 .annual-row:first-child {
   border-top: 0;
@@ -2374,5 +2374,386 @@ button:disabled {
     right: 12px;
     left: 12px;
     width: auto;
+  }
+}
+
+/* ==========================================================================
+   Changes from the Director General's review
+   ========================================================================== */
+
+/* ---- the register in rank order ----------------------------------------- */
+/* "This is civil servants and there is hierarchy." Bands are headed so the
+   order is visible rather than merely implied. */
+.rank-band + .rank-band {
+  margin-top: 26px;
+}
+.rank-band-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.rank-band-head h2 {
+  margin: 0;
+  font: 600 11px var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.rank-band-head span {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  background: var(--slate-soft);
+  color: var(--ink-soft);
+  font: 600 11px var(--mono);
+  text-align: center;
+}
+
+/* ---- completion analysis, hidden until asked for ------------------------ */
+/* "It is what you display they use against you. It is good to be there, but I
+   do not want to show him — if he requests it, I can pop it out." */
+.idp-progress {
+  position: relative;
+}
+.idp-progress-hidden {
+  align-content: center;
+  justify-items: start;
+  gap: 10px;
+}
+.idp-analysis-show {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 15px;
+  border: 1px dashed #3c4668;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: #dfe4f2;
+  font: 600 13px var(--ui);
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.idp-analysis-show:hover {
+  border-color: #616f9c;
+  background: rgba(255, 255, 255, 0.05);
+}
+.idp-progress-hidden small {
+  max-width: 260px;
+  color: #8d99b8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.idp-analysis-hide {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: #8d99b8;
+  font: 500 11.5px var(--ui);
+  cursor: pointer;
+}
+.idp-analysis-hide:hover {
+  color: #dfe4f2;
+}
+.idp-analysis-hide svg {
+  transform: rotate(-90deg);
+}
+.idp-analysis-note {
+  max-width: 280px;
+  margin-top: 10px;
+  color: #8d99b8;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* A directorate that is not one of the five, flagged for reassignment. */
+.fact-note {
+  display: block;
+  margin-top: 2px;
+  color: var(--amber);
+  font-size: 11.5px;
+}
+
+/* ---- OJT charts, nested under the phase they belong to ------------------ */
+/* "That progress chart is not a course on its own — it is the content of OJT 1,
+   OJT 2 and OJT 3." */
+.plan-entry {
+  border-top: 1px solid var(--line-soft);
+}
+.plan-entry > .plan-row {
+  border-top: 0;
+}
+.plan-row-extra {
+  padding: 4px 18px 18px 54px;
+  background: #f6f8fc;
+  border-top: 1px dashed var(--line);
+}
+.plan-row-extra .ojt-chart {
+  margin-top: 14px;
+}
+.plan-row-extra .empty {
+  padding: 18px;
+}
+.plan-row-extra .panel-foot {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* ---- withdrawing or deferring an assigned course ------------------------ */
+.deadline-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.choice-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.choice {
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.choice:hover {
+  border-color: var(--muted);
+}
+.choice.active {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  box-shadow: inset 0 0 0 1px var(--blue);
+}
+.choice strong {
+  font-size: 14px;
+}
+.choice small {
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* ---- the training organisations directory ------------------------------- */
+/* "Where you get to connect to any school — the link to the school." */
+.org-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+.org-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+}
+.org-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.org-card header strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.org-card header small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.org-serial {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: var(--slate-soft);
+  color: var(--muted);
+  font: 600 10.5px var(--mono);
+}
+.org-courses {
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.org-contacts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.org-contacts div {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 10px;
+  align-items: baseline;
+}
+.org-contacts dt {
+  color: var(--muted);
+  font: 500 9.5px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.org-contacts dd {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.org-contacts a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--blue);
+  text-decoration: none;
+}
+.org-contacts a:hover {
+  text-decoration: underline;
+}
+.org-notes {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.org-card > footer {
+  display: flex;
+  gap: 14px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+/* ---- the analytics console ---------------------------------------------- */
+/* "Create that data analytical separate so that I can query it." */
+.toolbar-analytics {
+  flex-wrap: wrap;
+}
+.analysis-table {
+  display: grid;
+}
+.analysis-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 2fr) minmax(120px, 1fr) 90px 90px minmax(150px, 1.2fr) 80px;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 12.5px;
+}
+.analysis-table-slim .analysis-row {
+  grid-template-columns: minmax(200px, 2fr) 90px 90px minmax(150px, 1.2fr);
+}
+.analysis-row:first-child {
+  border-top: 0;
+}
+.analysis-head {
+  position: sticky;
+  top: 0;
+  background: #f2f4f9;
+  color: var(--muted);
+  font: 500 9.5px var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.analysis-row strong {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.analysis-row small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.analysis-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.analysis-pair > .panel {
+  margin: 0;
+}
+.division-note {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.spend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  padding: 18px 20px;
+}
+.spend-figure {
+  display: grid;
+  gap: 3px;
+}
+.spend-figure strong {
+  font: 600 24px/1.1 var(--ui);
+  letter-spacing: -0.02em;
+}
+.spend-figure small {
+  color: var(--muted);
+  font: 500 10.5px var(--mono);
+  letter-spacing: 0.08em;
+}
+
+/* An approved plan line already taken onto somebody's development plan. */
+.annual-assigned {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--green);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+@media (max-width: 1100px) {
+  .analysis-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .choice-row {
+    grid-template-columns: 1fr;
+  }
+  .org-grid {
+    grid-template-columns: 1fr;
+  }
+  .analysis-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .plan-row-extra {
+    padding-left: 18px;
   }
 }

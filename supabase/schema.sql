@@ -6,6 +6,7 @@
 -- Safe to re-run: drops and recreates application tables. Storage buckets and
 -- uploaded files are left alone.
 
+drop table if exists public.training_organisations cascade;
 drop table if exists public.ojt_tasks cascade;
 drop table if exists public.ojt_charts cascade;
 drop table if exists public.staff_credentials cascade;
@@ -60,7 +61,9 @@ create table public.employees (
   -- Training Instructor), Director and so on. Free text like profession, since
   -- the UI offers the known levels plus a box for one the list misses.
   personnel_level text,
-  training_profile text,
+  -- The Director General at review: "technical profile is not what is supposed
+  -- to be there — there is supposed to be a box for specialty."
+  specialty text,
   years_experience smallint,
   qualifications text,
   license text,
@@ -194,6 +197,8 @@ create table public.annual_plan_items (
   -- Free text on purpose. The sheet holds "6 -24 July 2026", "TBD", "5 Days" and
   -- bare years; forcing a date range would lose most of the plan on import.
   training_dates text,
+  -- "...with the amount, the time, the duration." Free text: "5 Days", "2 weeks".
+  duration text,
   priority public.training_priority,
   training_type text,          -- Initial / Basic / Advance / Specialize / Recurrent / OJT
   cost numeric(14,2),
@@ -209,6 +214,11 @@ create table public.annual_plan_items (
   dg_comment text,
   dg_decided_by uuid references public.app_users(id) on delete set null,
   dg_decided_at timestamptz,
+
+  -- Once the DG has approved the line, Training & Standards takes it onto the
+  -- person's plan — "it is from that plan that I come and select".
+  course_id uuid references public.courses(id) on delete set null,
+  assigned_record_id uuid references public.training_records(id) on delete set null,
   -- ponytail: no dg_cost column. The DG amends venue and delivery; Training &
   -- Standards re-prices and the new figure lands on `cost`. Add one if the DG
   -- starts quoting figures himself.
@@ -251,6 +261,10 @@ create table public.ojt_charts (
   title text not null default 'Aircraft Accident Investigator OJT Progress Chart',
   grade_level text,            -- "ASI V"
   supervisor text,             -- the OJT instructor, who may not have a login
+  -- Which OJT phase this chart records. The chart is the content of OJT 1, OJT 2
+  -- or OJT 3 rather than an item of its own: "the auditor asks what did they do
+  -- in your OJT", and the answer has to sit under the course.
+  course_id uuid references public.courses(id) on delete set null,
   status text not null default 'Open',   -- Open | Completed
   created_by uuid references public.app_users(id) on delete set null,
   created_at timestamptz not null default now(),
@@ -273,7 +287,31 @@ create table public.ojt_tasks (
 );
 
 create index ojt_charts_employee_idx on public.ojt_charts(employee_id);
+create index ojt_charts_course_idx on public.ojt_charts(course_id);
 create index ojt_tasks_chart_idx on public.ojt_tasks(chart_id, sort_order);
+
+-- ---- training organisations -------------------------------------------------
+-- The bureau's directory of training schools, from the "Training Organisations"
+-- sheet of the AIA Training Program Management workbook. The Director asked for
+-- it as a page of its own after the course catalogue: "when I click, it shows me
+-- all the links to those training institutions."
+create table public.training_organisations (
+  id uuid primary key default gen_random_uuid(),
+  serial smallint,
+  name text not null unique,
+  website text,
+  email text,
+  phone text,
+  contact text,
+  address text,
+  courses text,                -- what the bureau sends people there for
+  notes text,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index training_organisations_name_idx on public.training_organisations(name);
 
 insert into storage.buckets (id, name, public)
 values ('nsib-certificates', 'nsib-certificates', false)

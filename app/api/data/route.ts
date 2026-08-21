@@ -3,6 +3,8 @@ import { getSession } from '@/lib/session'
 import {
   ANNUAL_PLAN_COLUMNS,
   EMPLOYEE_COLUMNS,
+  ORGANISATION_COLUMNS,
+  byHierarchy,
   canSeeEveryone,
   db,
   fetchAll,
@@ -12,11 +14,14 @@ import {
   mapAnnualItem,
   mapDocument,
   mapEmployee,
+  mapOrganisation,
   mapRequest,
   progressByEmployee,
   signPhotos,
 } from '@/lib/idp-server'
 import { CURRENCIES, DELIVERY_MODES, PROGRAMME_TYPES } from '@/lib/programme'
+import { normaliseDirectorate, rankOf } from '@/lib/org'
+import { hasStepUp } from '@/lib/session'
 import { LEVEL3_CHECKS, OJT_TASKS } from '@/lib/ojt'
 
 const fail = (message: string, status: number) => NextResponse.json({ error: message }, { status })
@@ -28,6 +33,12 @@ const date = (value: unknown) => {
   const trimmed = String(value ?? '').trim()
   return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null
 }
+/**
+ * There are five directorates and no others. Anything recognisable is stored in
+ * its canonical spelling; anything else is kept verbatim rather than thrown
+ * away, and shows in the console as "Unassigned" so it gets placed by hand.
+ */
+const directorate = (value: unknown) => normaliseDirectorate(String(value ?? '')) ?? text(value)
 
 /**
  * The directory payload: everyone, their headline progress, the catalogue and
@@ -36,7 +47,7 @@ const date = (value: unknown) => {
  */
 async function directory() {
   const client = db()
-  const [employees, courses, progressRows, documents, requests, annualPlan] = await Promise.all([
+  const [employees, courses, progressRows, documents, requests, annualPlan, organisations] = await Promise.all([
     client.from('employees').select(EMPLOYEE_COLUMNS).eq('active', true).order('name'),
     client.from('courses').select('id, name, programme_type, sort_order, renewal_cycle, owner_unit, required').eq('active', true).order('sort_order'),
     // Paged: one row per employee per course is well past PostgREST's cap.
@@ -51,18 +62,24 @@ async function directory() {
     // one row per person per course per year, so it grows the same way the
     // training records do. Paged for the same reason.
     fetchAll<any>('annual_plan_items', `${ANNUAL_PLAN_COLUMNS}, employees(name)`),
+    client.from('training_organisations').select(ORGANISATION_COLUMNS).eq('active', true).order('serial', { nullsFirst: false }),
   ])
-  for (const result of [employees, courses, documents, requests]) if (result.error) throw result.error
+  for (const result of [employees, courses, documents, requests, organisations]) if (result.error) throw result.error
 
   const photos = await signPhotos((employees.data || []).map((row: any) => row.photo_path))
   const progress = progressByEmployee(progressRows)
 
   return {
     programmeTypes: PROGRAMME_TYPES,
-    employees: (employees.data || []).map((row: any) => ({
-      ...mapEmployee(row, row.photo_path ? photos.get(row.photo_path) : undefined),
-      progress: progress.get(row.id) || { applicable: 0, completed: 0, overdue: 0, outstanding: 0, percent: 0 },
-    })),
+    // Civil-service order, not alphabetical: the DG, then directors, then the
+    // rest. Sorted here so every caller reads the register the same way.
+    employees: (employees.data || [])
+      .map((row: any) => ({
+        ...mapEmployee(row, row.photo_path ? photos.get(row.photo_path) : undefined),
+        progress: progress.get(row.id) || { applicable: 0, completed: 0, overdue: 0, outstanding: 0, percent: 0 },
+      }))
+      .sort(byHierarchy)
+      .map((employee: any) => ({ ...employee, rank: rankOf(employee.designation, employee.personnelLevel) })),
     courses: (courses.data || []).map((row: any) => ({
       id: row.id,
       name: row.name,
@@ -77,6 +94,7 @@ async function directory() {
     annualPlan: annualPlan.map(mapAnnualItem),
     // Newest year first — that is the one being planned or signed off.
     planYears: Array.from(new Set(annualPlan.map((row: any) => row.year))).sort((a: any, b: any) => b - a),
+    organisations: (organisations.data || []).map(mapOrganisation),
   }
 }
 
@@ -110,6 +128,7 @@ export async function POST(request: Request) {
     // ---- the DG's only write: signing off a funded training request --------
     if (action === 'decide_request') {
       if (!isDirector(user.role)) return fail('Only the Director General can decide a training request.', 403)
+      if (!(await hasStepUp(user.id))) return fail('CONFIRM_PASSWORD', 428)
       const status = payload.status === 'Approved' ? 'Approved' : payload.status === 'Declined' ? 'Declined' : null
       if (!status) return fail('Decision must be Approved or Declined.', 400)
       const comment = text(payload.comment)
@@ -132,6 +151,7 @@ export async function POST(request: Request) {
     // them to the USA", or "an in-house expert can deliver this".
     if (action === 'decide_plan_item') {
       if (!isDirector(user.role)) return fail('Only the Director General can decide a training plan line.', 403)
+      if (!(await hasStepUp(user.id))) return fail('CONFIRM_PASSWORD', 428)
       const status = ['Approved', 'Rejected', 'Amended'].includes(String(payload.status)) ? String(payload.status) : null
       if (!status) return fail('Decision must be Approved, Rejected or Amended.', 400)
       const comment = text(payload.comment)
@@ -222,6 +242,59 @@ export async function POST(request: Request) {
       if (saved.error) throw saved.error
       if (!saved.data) return fail('Training record not found.', 404)
       await logAudit(user.id, 'record_updated', 'training_record', id, update as Record<string, unknown>)
+    }
+
+    // ---- withdrawing or deferring an assigned course ----------------------
+    // The Director: "what if a course was assigned and we say cancel, we are not
+    // going again?" — and its softer twin, "don't worry, till next year".
+    // Withdrawing clears the schedule and puts the course back in the catalogue
+    // untouched; deferring keeps it assigned and moves the deadline.
+    else if (action === 'withdraw_training') {
+      const id = String(payload.id || '')
+      const reason = text(payload.reason)
+      const mode = payload.mode === 'Defer' ? 'Defer' : 'Withdraw'
+      if (!id) return fail('A training record is required.', 400)
+      if (!reason) return fail('Say why the course is being ' + (mode === 'Defer' ? 'deferred' : 'withdrawn') + ' — it goes on the record.', 400)
+
+      const record = await client.from('training_records').select('id, status, comments, due_date').eq('id', id).maybeSingle()
+      if (record.error) throw record.error
+      if (!record.data) return fail('Training record not found.', 404)
+      if (record.data.status === 'Completed') return fail('That course is already completed — it cannot be withdrawn.', 409)
+
+      const today = new Date().toISOString().slice(0, 10)
+      const note = (existing: string | null, line: string) => [existing, line].filter(Boolean).join(' · ')
+
+      if (mode === 'Defer') {
+        const deferredTo = date(payload.dueDate)
+        if (!deferredTo) return fail('Give the new deadline to defer the course to.', 400)
+        const saved = await client
+          .from('training_records')
+          .update({
+            status: 'Planned',
+            planned_date: null,
+            due_date: deferredTo,
+            comments: note(record.data.comments, `Deferred on ${today} to ${deferredTo}: ${reason}`),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id)
+        if (saved.error) throw saved.error
+        await logAudit(user.id, 'training_deferred', 'training_record', id, { reason, deferredTo })
+      } else {
+        const saved = await client
+          .from('training_records')
+          .update({
+            status: 'Not started',
+            planned_date: null,
+            planned_year: null,
+            due_date: null,
+            review_comment: null,
+            comments: note(record.data.comments, `Withdrawn on ${today}: ${reason}`),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id)
+        if (saved.error) throw saved.error
+        await logAudit(user.id, 'training_withdrawn', 'training_record', id, { reason })
+      }
     }
 
     // ---- certificate verification ----------------------------------------
@@ -378,11 +451,15 @@ export async function POST(request: Request) {
         course_title: courseTitle,
         institution: text(payload.institution),
         training_dates: text(payload.trainingDates),
+        // The paper form carries dates and a duration side by side: "6-24 July
+        // 2026" and "5 Days" answer different questions.
+        duration: text(payload.duration),
         priority: ['P1', 'P2', 'P3', 'R'].includes(String(payload.priority)) ? payload.priority : null,
         training_type: text(payload.trainingType),
         cost,
         currency: CURRENCIES.includes(String(payload.currency)) ? payload.currency : 'NGN',
         delivery: DELIVERY_MODES.includes(String(payload.delivery)) ? String(payload.delivery) : 'External',
+        course_id: text(payload.courseId),
         updated_at: new Date().toISOString(),
       }
 
@@ -392,13 +469,34 @@ export async function POST(request: Request) {
         // clearing it is an explicit `reopen`, so correcting a typo does not
         // throw away a signature, and a real change of substance still can.
         const update: Record<string, unknown> = { ...row }
-        if (payload.reopen === true) {
+
+        // The Director asked for a firewall around his sign-off. Left as it was,
+        // this let Training & Standards edit the country or the cost of a line
+        // he had already approved and keep the approval — his signature against
+        // something he never saw. Any change of substance sends the line back to
+        // him, whether or not the caller asked for it.
+        const existing = await client
+          .from('annual_plan_items')
+          .select('dg_status, course_title, institution, training_dates, duration, cost, currency, delivery, priority, training_type, year, employee_id')
+          .eq('id', id)
+          .maybeSingle()
+        if (existing.error) throw existing.error
+        if (!existing.data) return fail('That line of the plan no longer exists.', 404)
+
+        const SUBSTANTIVE = ['course_title', 'institution', 'training_dates', 'duration', 'cost', 'currency', 'delivery', 'priority', 'training_type', 'year', 'employee_id'] as const
+        const changed = SUBSTANTIVE.filter(field => String((row as any)[field] ?? '') !== String((existing.data as any)[field] ?? ''))
+        const decided = existing.data.dg_status !== 'Pending'
+
+        if (payload.reopen === true || (decided && changed.length)) {
           Object.assign(update, { dg_status: 'Pending', dg_institution: null, dg_delivery: null, dg_comment: null, dg_decided_by: null, dg_decided_at: null })
+          if (decided && changed.length) {
+            await logAudit(user.id, 'plan_item_reopened_by_edit', 'annual_plan_item', id, { changed, was: existing.data.dg_status })
+          }
         }
         const saved = await client.from('annual_plan_items').update(update).eq('id', id).select('id').maybeSingle()
         if (saved.error) throw saved.error
         if (!saved.data) return fail('That line of the plan no longer exists.', 404)
-        await logAudit(user.id, 'plan_item_updated', 'annual_plan_item', id, { reopened: payload.reopen === true })
+        await logAudit(user.id, 'plan_item_updated', 'annual_plan_item', id, { changed })
       } else {
         const created = await client.from('annual_plan_items').insert(row).select('id').single()
         if (created.error) {
@@ -437,15 +535,133 @@ export async function POST(request: Request) {
       await logAudit(user.id, 'amendment_applied', 'annual_plan_item', id, { institution: item.data.dg_institution, delivery: item.data.dg_delivery })
     }
 
+    // ---- taking an approved plan line onto somebody's plan ------------------
+    // The Director described the annual plan as the paperwork it replaces: every
+    // name with their courses, the cost, the dates and the duration. "It is from
+    // that plan that I come and select — after approval — and I say planned."
+    // This is that step.
+    else if (action === 'assign_from_plan_item') {
+      const id = String(payload.id || '')
+      const line = await client.from('annual_plan_items').select('*').eq('id', id).maybeSingle()
+      if (line.error) throw line.error
+      const item = line.data
+      if (!item) return fail('That line of the plan no longer exists.', 404)
+      if (item.dg_status !== 'Approved') return fail('Only a line the Director General has approved can be put on a plan.', 409)
+      if (item.assigned_record_id) return fail('That line is already on the plan.', 409)
+
+      // The line is free text off the sheet; a training record needs a catalogue
+      // course. Take the one already linked, else the one chosen now, else match
+      // the title.
+      let courseId = item.course_id || text(payload.courseId)
+      if (!courseId) {
+        const match = await client.from('courses').select('id').ilike('name', item.course_title).eq('active', true).limit(1).maybeSingle()
+        if (match.error) throw match.error
+        courseId = match.data?.id ?? null
+      }
+      if (!courseId) return fail('Choose the catalogue course this line corresponds to before putting it on the plan.', 400)
+
+      const note = [
+        item.institution && `Institution: ${item.institution}`,
+        item.training_dates && `Dates: ${item.training_dates}`,
+        item.duration && `Duration: ${item.duration}`,
+        item.cost && `Approved cost: ${item.currency} ${Number(item.cost).toLocaleString()}`,
+        item.delivery === 'In-house' && 'Delivered in-house',
+        `From the ${item.year} annual training plan, approved by the Director General`,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+
+      const assigned = await client
+        .from('training_records')
+        .upsert(
+          {
+            employee_id: item.employee_id,
+            course_id: courseId,
+            applicable: true,
+            priority: item.priority,
+            status: 'Planned',
+            planned_date: date(payload.plannedDate),
+            planned_year: item.year,
+            due_date: date(payload.dueDate),
+            comments: note,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'employee_id,course_id' },
+        )
+        .select('id')
+        .single()
+      if (assigned.error) throw assigned.error
+
+      const linked = await client.from('annual_plan_items').update({ course_id: courseId, assigned_record_id: assigned.data.id }).eq('id', id)
+      if (linked.error) throw linked.error
+      await logAudit(user.id, 'plan_item_assigned', 'annual_plan_item', id, { employeeId: item.employee_id, courseId })
+    }
+
+    // ---- the training organisations directory -------------------------------
+    // "Where you get to connect to any school — the link to the school."
+    else if (action === 'upsert_organisation') {
+      const name = text(payload.name)
+      if (!name) return fail('The name of the training organisation is required.', 400)
+      const website = text(payload.website)
+      const row = {
+        name,
+        serial: Number(payload.serial) > 0 ? Number(payload.serial) : null,
+        // Stored with a scheme so the link works from the page; a bare
+        // "www.ncat.gov.ng" otherwise resolves against this site.
+        website: website ? (/^https?:\/\//i.test(website) ? website : `https://${website}`) : null,
+        email: text(payload.email),
+        phone: text(payload.phone),
+        contact: text(payload.contact),
+        address: text(payload.address),
+        courses: text(payload.courses),
+        notes: text(payload.notes),
+        updated_at: new Date().toISOString(),
+      }
+      const id = text(payload.id)
+      if (id) {
+        const saved = await client.from('training_organisations').update(row).eq('id', id).select('id').maybeSingle()
+        if (saved.error) throw saved.error
+        if (!saved.data) return fail('That training organisation no longer exists.', 404)
+        await logAudit(user.id, 'organisation_updated', 'training_organisation', id, { name })
+      } else {
+        const created = await client.from('training_organisations').insert(row).select('id').single()
+        if (created.error) {
+          if (created.error.code === '23505') return fail('That training organisation is already in the directory.', 409)
+          throw created.error
+        }
+        await logAudit(user.id, 'organisation_added', 'training_organisation', created.data.id, { name })
+      }
+    } else if (action === 'delete_organisation') {
+      const id = String(payload.id || '')
+      if (!id) return fail('A training organisation is required.', 400)
+      // Soft: the annual plan and past records name these schools in free text,
+      // and the directory is a reference, not a foreign key.
+      const removed = await client.from('training_organisations').update({ active: false, updated_at: new Date().toISOString() }).eq('id', id).select('id').maybeSingle()
+      if (removed.error) throw removed.error
+      if (!removed.data) return fail('That training organisation no longer exists.', 404)
+      await logAudit(user.id, 'organisation_removed', 'training_organisation', id, {})
+    }
+
     // ---- OJT progress charts ------------------------------------------------
     else if (action === 'create_ojt_chart') {
       const employeeId = String(payload.employeeId || '')
       if (!employeeId) return fail('A member of staff is required.', 400)
+      // The chart is the content of an OJT phase, not an item of its own: the
+      // auditor who sees "OJT 1 completed" asks what was done in it, and the
+      // answer has to sit under that course.
+      const courseId = text(payload.courseId)
+      if (!courseId) return fail('Choose which OJT phase this chart records — OJT 1, OJT 2 or OJT 3.', 400)
+      const phase = await client.from('courses').select('id, name, programme_type').eq('id', courseId).maybeSingle()
+      if (phase.error) throw phase.error
+      if (!phase.data) return fail('That course no longer exists.', 404)
+      if (phase.data.programme_type !== 'OJT') return fail('An OJT progress chart belongs to an OJT course.', 400)
+
       const chart = await client
         .from('ojt_charts')
         .insert({
           employee_id: employeeId,
-          title: text(payload.title) || 'Aircraft Accident Investigator OJT Progress Chart',
+          course_id: courseId,
+          title: text(payload.title) || phase.data.name,
           grade_level: text(payload.gradeLevel),
           supervisor: text(payload.supervisor),
           created_by: user.id,
@@ -459,7 +675,7 @@ export async function POST(request: Request) {
         .from('ojt_tasks')
         .insert(OJT_TASKS.map((task, index) => ({ chart_id: chart.data.id, task: task.task, source: task.source, sort_order: index + 1 })))
       if (tasks.error) throw tasks.error
-      await logAudit(user.id, 'ojt_chart_created', 'ojt_chart', chart.data.id, { employeeId })
+      await logAudit(user.id, 'ojt_chart_created', 'ojt_chart', chart.data.id, { employeeId, courseId })
     } else if (action === 'sign_ojt_task') {
       const id = String(payload.id || '')
       const level = Number(payload.level)
@@ -505,11 +721,11 @@ export async function POST(request: Request) {
         .update({
           name: text(payload.name) || undefined,
           designation: text(payload.designation),
-          division: text(payload.division),
-          department: text(payload.department),
+          division: directorate(payload.division),
+          department: directorate(payload.department),
           profession: text(payload.profession),
           personnel_level: text(payload.personnelLevel),
-          training_profile: text(payload.trainingProfile),
+          specialty: text(payload.specialty),
           years_experience: years,
           qualifications: text(payload.qualifications),
           license: text(payload.license),
@@ -531,11 +747,11 @@ export async function POST(request: Request) {
           name,
           initials: name.split(/\s+/).map((part: string) => part[0]).slice(0, 2).join('').toUpperCase(),
           designation: text(payload.designation),
-          division: text(payload.division),
-          department: text(payload.department),
+          division: directorate(payload.division),
+          department: directorate(payload.department),
           profession: text(payload.profession),
           personnel_level: text(payload.personnelLevel),
-          training_profile: text(payload.trainingProfile),
+          specialty: text(payload.specialty),
           license: text(payload.license),
           email,
         })

@@ -25,6 +25,9 @@ const transpile = file =>
 const programmeUrl = dataUrl(transpile('programme.ts'))
 const { displayStatus, planProgress, daysToDeadline, parseDate, groupByProgramme, formatWhen } = await import(programmeUrl)
 
+// The organisation rules the register is now sorted and grouped by.
+const { normaliseDirectorate, directorateLabel, rankOf, compareByHierarchy, groupByHierarchy } = await import(dataUrl(transpile('org.ts')))
+
 // idp-csv.ts imports the shared vocabulary through the "@/lib" alias, which does
 // not exist outside Next's bundler — point it at the module just loaded.
 const { buildIdpCsv } = await import(dataUrl(transpile('idp-csv.ts').replace('@/lib/programme', programmeUrl)))
@@ -98,7 +101,7 @@ const csv = buildIdpCsv([
       department: 'Transport Investigation',
       profession: 'Aircraft Maintenance Engineer',
       license: '2470',
-      trainingProfile: 'Technical',
+      specialty: 'Aircraft Structures',
       yearsExperience: 25,
       qualifications: 'B.Eng. (Aero), M.Sc.',
     },
@@ -196,4 +199,54 @@ const many = buildIdpCsv([
 assert.equal((many.match(/NIGERIAN SAFETY INVESTIGATION BUREAU/g) || []).length, 2)
 assert.ok(many.includes('First Staff') && many.includes('Second Staff'))
 
-console.log('programme rules and CSV export: all checks passed')
+// ---- the five directorates ------------------------------------------------
+// The register spells the same directorate four ways. Every spelling that is not
+// in doubt has to land on one canonical name, or the coverage table splits one
+// directorate across four rows again.
+assert.equal(normaliseDirectorate('Traansport Investigation'), 'Directorate of Transport Investigation')
+assert.equal(normaliseDirectorate('transport investigation'), 'Directorate of Transport Investigation')
+assert.equal(normaliseDirectorate('DTI'), 'Directorate of Transport Investigation')
+// "Technical investigation, transport investigation — they are all the same."
+assert.equal(normaliseDirectorate('Technical Investigation'), 'Directorate of Transport Investigation')
+assert.equal(normaliseDirectorate('DTS'), 'Directorate of Technical Services')
+assert.equal(normaliseDirectorate('Technical Services'), 'Directorate of Technical Services')
+assert.equal(normaliseDirectorate('Safety Lab'), 'Transport Safety Lab')
+assert.equal(normaliseDirectorate('CEO'), 'CEO')
+
+// Operations was abolished without anywhere to send its staff, so it must NOT be
+// guessed into a directorate — it shows as unassigned and is placed by hand.
+assert.equal(normaliseDirectorate('Operations'), null)
+assert.equal(normaliseDirectorate('Special duties'), null)
+assert.equal(directorateLabel('Operations'), 'Unassigned')
+assert.equal(directorateLabel(null), 'Unassigned')
+
+// ---- civil service hierarchy ------------------------------------------------
+// "You cannot have a list that contains everybody with a director's name in the
+// middle of it." Order comes from the designation already on the sheet.
+assert.equal(rankOf('Director Geenral'), 0, 'the register spells it "Geenral" — the DG still has to sort first')
+assert.equal(rankOf('Director General'), 0)
+assert.equal(rankOf('Director, Transport Investigation'), 1)
+assert.equal(rankOf('Director,Technical Services'), 1)
+assert.equal(rankOf('Deputy Director'), 2, 'a deputy director is not a director')
+assert.equal(rankOf('GMTS'), 3)
+assert.ok(rankOf('ASI') > rankOf('Director, Special duties'))
+// Both spellings of trainee in the register, and both word orders.
+assert.equal(rankOf('Investigator Trainee'), 7)
+assert.equal(rankOf('Trainnee Investigator'), 7)
+assert.ok(rankOf('Investigator Trainee') > rankOf('Air safety Investigator'), 'a trainee sorts below an investigator')
+
+const register = [
+  { name: 'Zebra Trainee', designation: 'Investigator Trainee' },
+  { name: 'Abba Imam Ahmad', designation: 'ASI' },
+  { name: 'Capt. Alex Sabundu Badeh', designation: 'Director Geenral' },
+  { name: 'Engr. Abdullahi Babanya', designation: 'Director, Transport Investigation' },
+]
+const sorted = [...register].sort(compareByHierarchy).map(person => person.name)
+assert.deepEqual(sorted, ['Capt. Alex Sabundu Badeh', 'Engr. Abdullahi Babanya', 'Abba Imam Ahmad', 'Zebra Trainee'])
+
+// Grouped, the bands come out in the same order and nothing is dropped.
+const bands = groupByHierarchy(register)
+assert.deepEqual(bands.map(band => band.label), ['Director General', 'Directors', 'Investigators', 'Trainees'])
+assert.equal(bands.reduce((total, band) => total + band.people.length, 0), register.length)
+
+console.log('programme rules, directorates, hierarchy and CSV export: all checks passed')

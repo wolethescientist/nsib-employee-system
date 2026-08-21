@@ -1,0 +1,211 @@
+{
+ "organisations": [
+  {
+   "serial": 1,
+   "name": "EGIS AVIA",
+   "website": "https://www.egis-group.com/sectors/aviation",
+   "contact": null,
+   "address": null,
+   "email": null,
+   "phone": null
+  },
+  {
+   "serial": 2,
+   "name": "ENAC",
+   "website": "https://www.training.enac.fr",
+   "contact": null,
+   "address": "7, avenue Edouard Belin, BP 31055, Toulouse Cedex 4 FRANCE",
+   "email": null,
+   "phone": "+33 (0)5 62 17 40 00"
+  },
+  {
+   "serial": 3,
+   "name": "G2ACAMAS",
+   "website": "https://www.g2acamas.com",
+   "contact": null,
+   "address": "3 De Caen Street, Forest Side (Opposite Imperial College), MAURITIUS",
+   "email": "training@g2acamas.com",
+   "phone": "+230 673 1453"
+  },
+  {
+   "serial": 4,
+   "name": "IGAT ICAO",
+   "website": "https://www.igat.icao.int",
+   "contact": null,
+   "address": "ICAO Store, 999 Robert-Bourassa Boulevard, Montréal (Quebec) Canada H3C 5H7, ICAO Offices",
+   "email": "sales@icao.int",
+   "phone": "+1 514-954-8022"
+  },
+  {
+   "serial": 7,
+   "name": "Joint Aviation Authorities Training Organisation",
+   "website": "https://www.jaato.com",
+   "contact": null,
+   "address": "Beechavenue 1 - 19, 1119 RA, Schiphol-Rijk, The Netherlands",
+   "email": "training@jaato.com",
+   "phone": "31 (0) 23 56 797 90, +31 (0) 23 56 797 10"
+  },
+  {
+   "serial": 8,
+   "name": "Singapore aviation academy (SAA)",
+   "website": "https://www.saa.caas.gov.sg",
+   "contact": null,
+   "address": "Singpapore",
+   "email": "Jasmin_ISMAIL@caas.gov.sg",
+   "phone": "+33661299938"
+  },
+  {
+   "serial": 9,
+   "name": "Southern California Safety Institute",
+   "website": "https://www.scsi-inc.com",
+   "contact": null,
+   "address": "24325 Crenshaw Blvd, #226, Torrance, CA 90505",
+   "email": "registrar@scsi-inc.com",
+   "phone": "+310-517-8844"
+  },
+  {
+   "serial": 10,
+   "name": "Southpac Aerospace Courses",
+   "website": "https://www.southpac.biz",
+   "contact": null,
+   "address": "Unit 2b - 5 Executive Drive, Burleigh Waters QLD 4220",
+   "email": "admin@southpac.biz",
+   "phone": "+61 7 5533 9988"
+  },
+  {
+   "serial": 11,
+   "name": "Nigeria college of aviation technology",
+   "website": "https://www.ncat.gov.ng",
+   "contact": null,
+   "address": "Zaria, Kaduna State, Nigeria .",
+   "email": "info@ncat.gov.ng, academics@ncat.gov.ng",
+   "phone": "+2347015099833"
+  },
+  {
+   "serial": 12,
+   "name": "Sofema Aviation services",
+   "website": "https://www.sassofia.com",
+   "contact": null,
+   "address": "Yakubitsa str. 19, Fl. 4, 1164, Sofia, Bulgari",
+   "email": "team@sassofia.com",
+   "phone": null
+  },
+  {
+   "serial": 13,
+   "name": "Centro de investigaçao e prevencao de acidentes aeronauticos",
+   "website": "https://www.fab.mil.br",
+   "contact": null,
+   "address": "SHIS-QI5 aera especial 12 Lago Sul",
+   "email": "Protocol.cenipa@fab.mil.br",
+   "phone": null
+  },
+  {
+   "serial": 14,
+   "name": "Cranfield aviation training",
+   "website": "https://www.cranfield.co.za",
+   "contact": null,
+   "address": null,
+   "email": "info@cranfield.co.za",
+   "phone": "+27 11 708 2588/98"
+  },
+  {
+   "serial": 15,
+   "name": "IATA",
+   "website": "https://www.iata.org/en/training/courses",
+   "contact": null,
+   "address": null,
+   "email": null,
+   "phone": null
+  },
+  {
+   "serial": 16,
+   "name": "UK civil aviation authority",
+   "website": "https://www.caa.co.uk",
+   "contact": null,
+   "address": null,
+   "email": null,
+   "phone": null
+  },
+  {
+   "serial": 17,
+   "name": "Global Air Training",
+   "website": "https://www.globalairtraining.com",
+   "contact": null,
+   "address": null,
+   "email": "ops@globalairtraining.com",
+   "phone": "+44 (0)1829 771334"
+  },
+  {
+   "serial": 18,
+   "name": "Entreprise University of Pretoria",
+   "website": "https://www.enterprises.up.ac.za",
+   "contact": null,
+   "address": null,
+   "email": null,
+   "phone": null
+  },
+  {
+   "serial": 19,
+   "name": "Embry-Riddle aeronautical university",
+   "website": "https://www.enrole.com",
+   "contact": "Sarah Ochs",
+   "address": "Daytona Beach Campus, Advanced Flight Simulation Center (Daytona Beach Campus, FL), 311 Aerospace Blvd., Room 204, Daytona Beach, FL 32114",
+   "email": "dbproed@erau.edu",
+   "phone": "386.226.6928"
+  },
+  {
+   "serial": 20,
+   "name": "USC Viterbi",
+   "website": "https://aviationsafety.usc.edu/courses",
+   "contact": null,
+   "address": "6033 West Century Blvd. Ste. 920, Los Angeles CA 90045",
+   "email": "scalese@usc.edu",
+   "phone": "310-342-1345"
+  },
+  {
+   "serial": 21,
+   "name": "East African School of Aviation",
+   "website": "https://www.easa.ac.ke",
+   "contact": null,
+   "address": "P.O. Box: 30689-00100,, Nairobi, Kenya",
+   "email": "info@easa.ac.ke",
+   "phone": "+254 20 6823699"
+  },
+  {
+   "serial": 22,
+   "name": "Air formation",
+   "website": "https://airformationelearning.com",
+   "contact": null,
+   "address": null,
+   "email": null,
+   "phone": null
+  },
+  {
+   "serial": 23,
+   "name": "Lift Aviation",
+   "website": "https://liftaviation.com.br",
+   "contact": null,
+   "address": null,
+   "email": null,
+   "phone": null
+  },
+  {
+   "serial": 24,
+   "name": "Absant Training",
+   "website": "https://absant-group.pt",
+   "contact": null,
+   "address": "Rua de São Pedro N.o 1 – Escritório 203 2685-110 Sacavém, Portugal",
+   "email": "formacao@absant-group.pt",
+   "phone": "+351 927 413 517"
+  },
+  {
+   "serial": 25,
+   "name": "Global Aviation Training (GAT) ICAO",
+   "website": "https://www.icao.int/training/Pages/default.aspx",
+   "contact": null,
+   "address": null,
+   "email": null,
+   "phone": null
+  }
+ ]
+}

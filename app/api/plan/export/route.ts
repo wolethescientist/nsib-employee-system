@@ -57,7 +57,7 @@ export async function GET(request: Request) {
           division: person.division,
           department: person.department,
           profession: person.profession,
-          trainingProfile: person.training_profile,
+          specialty: person.specialty,
           yearsExperience: person.years_experience,
           qualifications: person.qualifications,
           license: person.license,

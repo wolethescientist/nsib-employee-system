@@ -5,9 +5,11 @@ import { IdpHeader } from '@/components/IdpHeader'
 import { ProgrammePlan } from '@/components/ProgrammePlan'
 import { Credentials } from '@/components/Credentials'
 import { OjtCharts } from '@/components/OjtCharts'
-import { DgPill, Empty, Icon, Modal, PersonnelLevelField, PriorityPill, ProfessionField, StatusPill } from '@/components/ui'
+import { DgPill, Empty, Icon, Modal, PersonnelLevelField, PriorityPill, ProfessionField, StatusPill, SuggestField } from '@/components/ui'
 import { daysToDeadline, formatMoney, formatWhen } from '@/lib/programme'
-import type { EmployeePlan, PlanRow } from '@/lib/types'
+import { DIRECTORATES } from '@/lib/org'
+import { postForm } from '@/lib/client'
+import type { CertificateDocument, EmployeePlan, PlanRow } from '@/lib/types'
 
 type Save = (action: string, payload: Record<string, unknown>, message?: string) => Promise<void>
 
@@ -33,6 +35,7 @@ export function EmployeeDetail({
 }) {
   const [editing, setEditing] = useState<PlanRow | null>(null)
   const [editingProfile, setEditingProfile] = useState(false)
+  const [withdrawing, setWithdrawing] = useState<PlanRow | null>(null)
 
   const outstanding = plan.records
     .filter(record => record.applicable && record.status !== 'Completed' && (record.dueDate || record.plannedDate))
@@ -45,7 +48,7 @@ export function EmployeeDetail({
       <div className="detail-bar">
         <button type="button" className="back-button" onClick={onBack}>
           <Icon name="back" size={15} />
-          All staff
+          All investigators
         </button>
         <div className="detail-bar-actions">
           <button type="button" className="ghost" onClick={onExport}>
@@ -66,7 +69,8 @@ export function EmployeeDetail({
         </div>
       </div>
 
-      <IdpHeader employee={plan.employee} progress={plan.progress} canEditPhoto={!readOnly} onPhotoChange={onUploadPhoto} />
+      {/* Hidden until asked for — see IdpHeader. */}
+      <IdpHeader employee={plan.employee} progress={plan.progress} canEditPhoto={!readOnly} onPhotoChange={onUploadPhoto} analysisHidden />
 
       {outstanding.length > 0 && (
         <section className="panel">
@@ -95,9 +99,16 @@ export function EmployeeDetail({
                     {days === null ? 'No deadline set' : days < 0 ? `${Math.abs(days)} days past deadline` : `${days} days left`}
                   </span>
                   {!readOnly && (
-                    <button type="button" className="secondary" onClick={() => setEditing(record)}>
-                      Manage
-                    </button>
+                    <span className="deadline-actions">
+                      <button type="button" className="secondary" onClick={() => setEditing(record)}>
+                        Manage
+                      </button>
+                      {/* "What if a course was assigned and we say cancel, we are
+                          not going again?" — or "don't worry, till next year". */}
+                      <button type="button" className="text-button" onClick={() => setWithdrawing(record)}>
+                        Withdraw
+                      </button>
+                    </span>
                   )}
                 </div>
               )
@@ -111,10 +122,27 @@ export function EmployeeDetail({
           <div>
             <div className="eyebrow">Training profile</div>
             <h2>Programme types</h2>
-            <p className="panel-note">Open a programme type to see every course under it. {readOnly ? '' : 'Select a course to set its priority, dates and applicability.'}</p>
+            <p className="panel-note">
+              Open a programme type to see every course under it. The OJT progress chart sits under the phase it belongs to — OJT 1, OJT 2 and OJT 3.{' '}
+              {readOnly ? '' : 'Select a course to set its priority, dates and applicability.'}
+            </p>
           </div>
         </div>
-        <ProgrammePlan records={plan.records} onSelect={readOnly ? undefined : record => setEditing(record)} />
+        <ProgrammePlan
+          records={plan.records}
+          onSelect={readOnly ? undefined : record => setEditing(record)}
+          renderExtra={record =>
+            record.programmeType === 'OJT' ? (
+              <OjtCharts
+                charts={plan.ojtCharts.filter(chart => chart.courseId === record.courseId)}
+                employeeName={plan.employee.name}
+                course={{ id: record.courseId, name: record.course }}
+                canSign={!readOnly}
+                onSave={(action, payload, message) => onSave(action, { employeeId: plan.employee.id, ...payload }, message)}
+              />
+            ) : null
+          }
+        />
       </section>
 
       {plan.requests.length > 0 && (
@@ -147,7 +175,7 @@ export function EmployeeDetail({
         <div className="panel-head">
           <div>
             <div className="eyebrow">Annual training plan</div>
-            <h2>Courses planned for this member of staff</h2>
+            <h2>Courses planned for this investigator</h2>
             <p className="panel-note">The year&rsquo;s plan as it went to the Director General, newest year first.</p>
           </div>
           <span className="queue-count">{plan.annualPlan.length}</span>
@@ -160,6 +188,7 @@ export function EmployeeDetail({
                 <span>Course title</span>
                 <span>Institution / country</span>
                 <span>Date</span>
+                <span>Duration</span>
                 <span>Pri.</span>
                 <span>Training type</span>
                 <span>Course fee</span>
@@ -174,6 +203,7 @@ export function EmployeeDetail({
                   </span>
                   <span className="annual-where">{line.dgStatus === 'Amended' && line.dgInstitution ? <><s>{line.institution || '—'}</s><b>{line.dgInstitution}</b></> : line.institution || '—'}</span>
                   <span className="annual-when">{line.trainingDates || '—'}</span>
+                  <span className="annual-when">{line.duration || '—'}</span>
                   <span>
                     <PriorityPill priority={line.priority} />
                   </span>
@@ -195,25 +225,9 @@ export function EmployeeDetail({
       <section className="panel">
         <div className="panel-head">
           <div>
-            <div className="eyebrow">On-the-job training</div>
-            <h2>OJT progress chart</h2>
-            <p className="panel-note">Each task is signed off at three levels: I discuss, II observe and assist, III perform.</p>
-          </div>
-        </div>
-        <OjtCharts
-          charts={plan.ojtCharts}
-          employeeName={plan.employee.name}
-          canSign={!readOnly}
-          onSave={(action, payload, message) => onSave(action, { employeeId: plan.employee.id, ...payload }, message)}
-        />
-      </section>
-
-      <section className="panel">
-        <div className="panel-head">
-          <div>
             <div className="eyebrow">Credentials</div>
             <h2>Qualification certificates</h2>
-            <p className="panel-note">Optional. Degrees, diplomas and licences this member of staff has uploaded.</p>
+            <p className="panel-note">Optional. Degrees, diplomas and licences this investigator has uploaded.</p>
           </div>
           <span className="queue-count">{plan.credentials.length}</span>
         </div>
@@ -228,6 +242,25 @@ export function EmployeeDetail({
           onSave={async payload => {
             await onSave('update_record', { id: editing.id, ...payload })
             setEditing(null)
+          }}
+          onFiled={async message => {
+            await onReload(message)
+            setEditing(null)
+          }}
+          onReview={async (id, decision, comment) => {
+            await onSave('review_document', { id, decision, comment }, decision === 'Approved' ? 'Certificate approved — the course is complete.' : 'Certificate returned.')
+            setEditing(null)
+          }}
+        />
+      )}
+
+      {withdrawing && (
+        <WithdrawCourse
+          record={withdrawing}
+          onClose={() => setWithdrawing(null)}
+          onSave={async payload => {
+            await onSave('withdraw_training', { id: withdrawing.id, ...payload }, payload.mode === 'Defer' ? 'Course deferred.' : 'Course withdrawn.')
+            setWithdrawing(null)
           }}
         />
       )}
@@ -251,15 +284,21 @@ function RecordEditor({
   certificate,
   onClose,
   onSave,
+  onFiled,
+  onReview,
 }: {
   record: PlanRow
-  certificate?: { id: string; fileName: string; reviewStatus: string }
+  certificate?: CertificateDocument
   onClose: () => void
   onSave: (payload: Record<string, unknown>) => Promise<void>
+  /** A certificate was filed and the course completed — the page has to refetch. */
+  onFiled: (message: string) => Promise<void>
+  onReview: (id: string, decision: 'Approved' | 'Returned', comment: string) => Promise<void>
 }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [overriding, setOverriding] = useState(false)
+  const [filing, setFiling] = useState(false)
   // Once evidence is in play the status belongs to the verification queue, not
   // to this form.
   const locked = record.status === 'Completed' || record.status === 'Submitted'
@@ -292,7 +331,7 @@ function RecordEditor({
         <label className="switch-field">
           <input type="checkbox" name="applicable" defaultChecked={record.applicable} />
           <span>
-            <strong>Applicable to this member of staff</strong>
+            <strong>Applicable to this investigator</strong>
             <small>Turn this off for courses outside their operations unit — they will not count towards completion.</small>
           </span>
         </label>
@@ -339,10 +378,13 @@ function RecordEditor({
           <div className="inline-note">
             <Icon name="check" size={14} />
             <span>
-              This course is completed by approving the employee&rsquo;s certificate in <b>Certificates</b> — not from here.
+              Completing this course means filing the certificate. It reaches the bureau through this office, so filing it here records the course as complete.
             </span>
+            <button type="button" className="text-button" onClick={() => setFiling(true)}>
+              File the certificate
+            </button>
             <button type="button" className="text-button" onClick={() => setOverriding(true)}>
-              Completed without a certificate?
+              No certificate?
             </button>
           </div>
         )}
@@ -356,6 +398,29 @@ function RecordEditor({
             <a href={`/api/certificates/${certificate.id}`} target="_blank" rel="noreferrer">
               Open
             </a>
+          </div>
+        )}
+
+        {/* Left over from when staff uploaded their own evidence. Staff no longer
+            can, so this only ever appears against a submission made before that
+            changed — and it still has to be possible to clear it. */}
+        {certificate?.reviewStatus === 'Pending' && (
+          <div className="inline-note inline-note-alert">
+            <Icon name="alert" size={14} />
+            <span>This certificate was submitted by the member of staff before Training &amp; Standards took over filing. Verify it to close it out.</span>
+            <button type="button" className="text-button" onClick={() => onReview(certificate.id, 'Approved', '')}>
+              Verify
+            </button>
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => {
+                const reason = window.prompt('Why is this certificate being returned?')?.trim()
+                if (reason) onReview(certificate.id, 'Returned', reason)
+              }}
+            >
+              Return
+            </button>
           </div>
         )}
 
@@ -378,6 +443,147 @@ function RecordEditor({
           }}
         />
       )}
+      {filing && <FileCertificate record={record} onClose={() => setFiling(false)} onDone={onFiled} />}
+    </Modal>
+  )
+}
+
+/**
+ * Filing the certificate for a course somebody has finished.
+ *
+ * This used to be the employee's job, with a verification queue behind it. The
+ * Director General took both away at review: certificates come to the bureau
+ * through Training & Standards, so one filed here is already verified and the
+ * course is complete the moment it lands.
+ */
+function FileCertificate({ record, onClose, onDone }: { record: PlanRow; onClose: () => void; onDone: (message: string) => Promise<void> }) {
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    form.set('trainingRecordId', record.id)
+    setSaving(true)
+    setError('')
+    try {
+      await postForm('/api/certificates/upload', form)
+      await onDone('Certificate filed — the course is recorded as complete.')
+    } catch (issue) {
+      setError(issue instanceof Error ? issue.message : 'Could not file the certificate.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title="File the certificate" subtitle={record.course} onClose={onClose}>
+      <form className="form" onSubmit={submit}>
+        <div className="inline-note">
+          <Icon name="check" size={14} />
+          <span>Filing the certificate completes the course. There is no separate verification step — it reaches the bureau through this office.</span>
+        </div>
+        <div className="form-grid">
+          <label>
+            Date the course was completed
+            <input name="completedDate" type="date" required max={new Date().toISOString().slice(0, 10)} />
+          </label>
+          <label>
+            Certificate (PDF, JPG or PNG)
+            <input name="file" type="file" accept="application/pdf,image/jpeg,image/png" required />
+          </label>
+        </div>
+        <label>
+          Comments
+          <textarea name="comments" placeholder="Optional — provider, cohort, or anything worth recording against the course." />
+        </label>
+        {error && <div className="form-error">{error}</div>}
+        <div className="form-actions">
+          <button type="button" className="secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="primary" disabled={saving}>
+            <Icon name="upload" size={14} />
+            {saving ? 'Filing…' : 'File and complete'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+/**
+ * Taking an assigned course back off somebody's plan.
+ *
+ * The Director General: "what if a course was assigned and we say cancel, we are
+ * not going again?" — withdrawing clears the schedule and leaves the course in
+ * the catalogue untouched. Its softer twin, "or don't worry, till next year,
+ * we'll check again", keeps the course assigned and moves the deadline.
+ *
+ * Either way a reason is required: it is written into the course's comments and
+ * into the audit log, so a course does not simply disappear off a plan.
+ */
+function WithdrawCourse({ record, onClose, onSave }: { record: PlanRow; onClose: () => void; onSave: (payload: Record<string, unknown>) => Promise<void> }) {
+  const [mode, setMode] = useState<'Withdraw' | 'Defer'>('Withdraw')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  // Same date next year is what "till next year, we'll check again" means.
+  const nextYear = (() => {
+    const base = record.dueDate ? new Date(record.dueDate) : new Date()
+    base.setFullYear(base.getFullYear() + 1)
+    return base.toISOString().slice(0, 10)
+  })()
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    setSaving(true)
+    setError('')
+    try {
+      await onSave({ mode, reason: data.get('reason'), dueDate: data.get('dueDate') })
+    } catch (issue) {
+      setError(issue instanceof Error ? issue.message : 'Could not update the course.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title="Withdraw or defer this course" subtitle={record.course} onClose={onClose}>
+      <form className="form" onSubmit={submit}>
+        <div className="choice-row">
+          <button type="button" className={mode === 'Withdraw' ? 'choice active' : 'choice'} onClick={() => setMode('Withdraw')}>
+            <strong>Withdraw it</strong>
+            <small>We are not going again. The deadline is cleared and the course goes back to not started.</small>
+          </button>
+          <button type="button" className={mode === 'Defer' ? 'choice active' : 'choice'} onClick={() => setMode('Defer')}>
+            <strong>Defer it</strong>
+            <small>Not now — we will check again. The course stays assigned with a later deadline.</small>
+          </button>
+        </div>
+
+        {mode === 'Defer' && (
+          <label>
+            New deadline
+            <input type="date" name="dueDate" defaultValue={nextYear} required />
+          </label>
+        )}
+
+        <label>
+          Reason
+          <textarea name="reason" required autoFocus placeholder={mode === 'Defer' ? 'e.g. Course not running until the next intake.' : 'e.g. Funding withdrawn for this financial year.'} />
+          <small className="field-hint">Written onto the course record and into the audit log against your account.</small>
+        </label>
+
+        {error && <div className="form-error">{error}</div>}
+        <div className="form-actions">
+          <button type="button" className="secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className={mode === 'Withdraw' ? 'danger' : 'primary'} disabled={saving}>
+            {saving ? 'Saving…' : mode === 'Withdraw' ? 'Withdraw the course' : 'Defer the course'}
+          </button>
+        </div>
+      </form>
     </Modal>
   )
 }
@@ -453,11 +659,11 @@ function ProfileEditor({ plan, onClose, onSave }: { plan: EmployeePlan; onClose:
   }
 
   return (
-    <Modal title="Edit staff details" subtitle="The header block of the Individual Development Plan" onClose={onClose} wide>
+    <Modal title="Edit investigator details" subtitle="The header block of the Individual Development Plan" onClose={onClose} wide>
       <form onSubmit={submit} className="form">
         <div className="form-grid">
           <label>
-            Name of staff
+            Name
             <input name="name" defaultValue={employee.name} required />
           </label>
           <label>
@@ -470,17 +676,23 @@ function ProfileEditor({ plan, onClose, onSave }: { plan: EmployeePlan; onClose:
             Licence number
             <input name="license" defaultValue={employee.license ?? ''} placeholder="e.g. 2470" />
           </label>
+          {/* "This department is not actually a department. It's directorate." */}
+          <SuggestField
+            name="division"
+            label="Directorate"
+            options={[...DIRECTORATES]}
+            value={employee.division}
+            placeholder="Type the directorate"
+            hint="The five directorates of the bureau. Anything else shows as unassigned until it is placed."
+          />
           <label>
-            Division
-            <input name="division" defaultValue={employee.division ?? ''} />
+            Unit or section
+            <input name="department" defaultValue={employee.department ?? ''} placeholder="e.g. Flight Recorder Unit" />
           </label>
+          {/* "There is supposed to be a box for specialty." */}
           <label>
-            Department
-            <input name="department" defaultValue={employee.department ?? ''} />
-          </label>
-          <label>
-            Training profile
-            <input name="trainingProfile" defaultValue={employee.trainingProfile ?? ''} placeholder="Operations / Technical" />
+            Specialty
+            <input name="specialty" defaultValue={employee.specialty ?? ''} placeholder="e.g. Powerplant, Flight recorders, Human factors" />
           </label>
           <label>
             Years of experience

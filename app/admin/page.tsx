@@ -5,11 +5,13 @@ import { Shell, type NavItem } from '@/components/Shell'
 import { Empty, Icon, Toast } from '@/components/ui'
 import { EmployeeDirectory } from '@/components/admin/EmployeeDirectory'
 import { EmployeeDetail } from '@/components/admin/EmployeeDetail'
-import { CertificateQueue } from '@/components/admin/CertificateQueue'
 import { RequestsBoard } from '@/components/admin/RequestsBoard'
 import { AnnualPlan } from '@/components/admin/AnnualPlan'
+import { Analytics } from '@/components/admin/Analytics'
+import { Organisations } from '@/components/admin/Organisations'
 import { AddEmployee, Catalogue, Overview } from '@/components/admin/Sections'
 import { ExportDialog } from '@/components/admin/ExportDialog'
+import { ConfirmIdentity } from '@/components/admin/ConfirmIdentity'
 import { Notifications } from '@/components/Notifications'
 import { adminNotices, directorNotices } from '@/lib/notifications'
 import { downloadCsv, getJson, postForm, postJson } from '@/lib/client'
@@ -18,11 +20,12 @@ import type { Directory, EmployeePlan } from '@/lib/types'
 
 const SECTION_TITLE: Record<string, string> = {
   overview: 'Overview',
-  employees: 'Staff records',
+  employees: 'Investigators',
   annual: 'Annual training plan',
-  certificates: 'Certificate verification',
   requests: 'Training requests',
   catalogue: 'Course catalogue',
+  organisations: 'Training organisations',
+  analytics: 'Training analytics',
 }
 
 export default function AdminConsole() {
@@ -34,6 +37,10 @@ export default function AdminConsole() {
   const [addingEmployee, setAddingEmployee] = useState(false)
   const [raisingRequest, setRaisingRequest] = useState(false)
   const [exporting, setExporting] = useState(false)
+  // The Director General's step-up confirmation. Set when the API refuses a
+  // decision because his password has not been confirmed in the last half hour;
+  // the retry runs the moment it is.
+  const [confirming, setConfirming] = useState<(() => Promise<void>) | null>(null)
 
   const notify = useCallback((message: string) => {
     setToast(message)
@@ -67,16 +74,37 @@ export default function AdminConsole() {
     }
   }, [])
 
-  /** Every write returns the refreshed directory; the open plan is reloaded alongside it. */
+  /**
+   * Every write returns the refreshed directory; the open plan is reloaded
+   * alongside it.
+   *
+   * `CONFIRM_PASSWORD` is the API asking the Director General to prove who he is
+   * before a decision is recorded. The write is held, the dialog opens, and the
+   * same write runs again once he has confirmed — so the guard never costs him
+   * the decision he had already made.
+   */
   const save = useCallback(
     async (action: string, payload: Record<string, unknown>, message?: string) => {
-      const next = await postJson<Directory>('/api/data', { action, payload })
-      setDirectory(next)
-      if (plan) setPlan(await getJson<EmployeePlan>(`/api/employees/${plan.employee.id}`))
-      if (message) notify(message)
-      return next
+      const run = async () => {
+        const next = await postJson<Directory>('/api/data', { action, payload })
+        setDirectory(next)
+        if (plan) setPlan(await getJson<EmployeePlan>(`/api/employees/${plan.employee.id}`))
+        if (message) notify(message)
+        return next
+      }
+      try {
+        return await run()
+      } catch (issue) {
+        if (issue instanceof Error && issue.message === 'CONFIRM_PASSWORD') {
+          setConfirming(() => async () => {
+            await run()
+          })
+          return directory as Directory
+        }
+        throw issue
+      }
     },
-    [plan, notify],
+    [plan, notify, directory],
   )
 
   if (error && !directory) {
@@ -100,7 +128,6 @@ export default function AdminConsole() {
     )
   }
 
-  const pendingCertificates = directory.documents.filter(document => document.reviewStatus === 'Pending').length
   const pendingRequests = directory.requests.filter(request => request.status === 'Pending').length
   // The DG's queue on the annual plan; for the training team it is his amendments
   // waiting to be taken onto the plan.
@@ -108,11 +135,14 @@ export default function AdminConsole() {
   const amendedPlanLines = directory.annualPlan.filter(line => line.dgStatus === 'Amended').length
   const nav: NavItem[] = [
     { key: 'overview', label: 'Overview', icon: 'chart' },
-    { key: 'employees', label: 'Staff records', icon: 'people' },
+    { key: 'employees', label: 'Investigators', icon: 'people' },
     { key: 'annual', label: 'Annual plan', icon: 'calendar', badge: readOnly ? pendingPlanLines : amendedPlanLines },
-    { key: 'certificates', label: 'Certificates', icon: 'catalogue', badge: readOnly ? 0 : pendingCertificates },
     { key: 'requests', label: readOnly ? 'For my signature' : 'DG requests', icon: 'stamp', badge: pendingRequests },
     { key: 'catalogue', label: 'Course catalogue', icon: 'plan' },
+    // The training school directory sits straight after the catalogue, which is
+    // where the Director General asked for it.
+    { key: 'organisations', label: 'Training organisations', icon: 'award' },
+    { key: 'analytics', label: 'Analytics', icon: 'chart' },
   ]
 
   const accountName = readOnly ? 'Director General' : 'Training & Standards'
@@ -136,7 +166,11 @@ export default function AdminConsole() {
               ? 'Every course planned for the year, with your decision beside each one. Accept it, reject it, or suggest a change — a different country, or an in-house expert.'
               : 'The year’s plan as it goes to the Director General: who, what course, where, when and how much.'
             : section === 'employees' && !plan
-            ? 'Every member of staff, their photograph and their development plan. Select someone to open their full record.'
+            ? 'The register in rank order: the Director General, the directors, then every investigator. Select someone to open their full record.'
+            : section === 'organisations'
+            ? 'The schools the bureau sends investigators to, with a link straight through to each one.'
+            : section === 'analytics'
+            ? 'Ask the register a question: a year, a directorate, a programme type — every figure answers for that slice.'
             : undefined
         }
         account={{ name: accountName, detail: directory.me.email, initials: initialsOf(accountName), tone: toneFor(directory.me.id) }}
@@ -163,13 +197,26 @@ export default function AdminConsole() {
           ) : undefined
         }
       >
-        {section === 'overview' && <Overview employees={directory.employees} documents={directory.documents} requests={directory.requests} onGo={setSection} />}
+        {section === 'overview' && <Overview employees={directory.employees} requests={directory.requests} onGo={setSection} />}
+
+        {section === 'analytics' && <Analytics />}
+
+        {section === 'organisations' && (
+          <Organisations
+            organisations={directory.organisations}
+            readOnly={readOnly}
+            onSave={async (action, payload, message) => {
+              await save(action, payload, message)
+            }}
+          />
+        )}
 
         {section === 'annual' && (
           <AnnualPlan
             items={directory.annualPlan}
             years={directory.planYears}
             employees={directory.employees}
+            courses={directory.courses}
             role={role}
             onSave={async (action, payload, message) => {
               await save(action, payload, message)
@@ -220,16 +267,6 @@ export default function AdminConsole() {
             />
           ))}
 
-        {section === 'certificates' && (
-          <CertificateQueue
-            documents={directory.documents}
-            readOnly={readOnly}
-            onReview={async (id, decision, comment) => {
-              await save('review_document', { id, decision, comment }, decision === 'Approved' ? 'Certificate approved — the course is now complete.' : 'Certificate returned to the employee.')
-            }}
-          />
-        )}
-
         {section === 'requests' && (
           <RequestsBoard
             requests={directory.requests}
@@ -261,10 +298,21 @@ export default function AdminConsole() {
           />
         )}
 
-        {!directory.employees.length && section === 'employees' && <Empty title="No staff records yet" detail="Run the workbook import to load the register." />}
+        {!directory.employees.length && section === 'employees' && <Empty title="No investigators on the register yet" detail="Run the workbook import to load it." />}
       </Shell>
 
       {exporting && <ExportDialog employees={directory.employees} onClose={() => setExporting(false)} onDone={notify} />}
+
+      {confirming && (
+        <ConfirmIdentity
+          onClose={() => setConfirming(null)}
+          onConfirmed={async () => {
+            const retry = confirming
+            setConfirming(null)
+            await retry()
+          }}
+        />
+      )}
 
       {addingEmployee && (
         <AddEmployee

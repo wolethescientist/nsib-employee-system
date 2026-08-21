@@ -26,11 +26,17 @@ export function OjtCharts({
   employeeName,
   canSign,
   onSave,
+  course,
 }: {
   charts: OjtChart[]
   employeeName: string
   canSign: boolean
   onSave?: Save
+  /**
+   * The OJT phase these charts belong to. A chart is the content of OJT 1, OJT 2
+   * or OJT 3 rather than a thing of its own, so it is always opened against one.
+   */
+  course?: { id: string; name: string }
 }) {
   const [signing, setSigning] = useState<{ task: OjtTask; level: OjtLevel } | null>(null)
   const [opening, setOpening] = useState(false)
@@ -40,7 +46,7 @@ export function OjtCharts({
     return (
       <>
         <Empty
-          title="No OJT progress chart yet"
+          title={course ? `No progress chart opened for ${course.name} yet` : 'No OJT progress chart yet'}
           detail={canSign ? 'Open one to start recording supervised on-the-job training.' : 'Training & Standards will open one when your on-the-job training begins.'}
         />
         {canSign && onSave && (
@@ -51,8 +57,8 @@ export function OjtCharts({
             </button>
           </div>
         )}
-        {opening && onSave && <OpenChart employeeName={employeeName} onClose={() => setOpening(false)} onSubmit={async payload => {
-          await onSave('create_ojt_chart', payload, 'OJT chart opened.')
+        {opening && onSave && <OpenChart employeeName={employeeName} course={course} onClose={() => setOpening(false)} onSubmit={async payload => {
+          await onSave('create_ojt_chart', { courseId: course?.id, ...payload }, 'OJT chart opened.')
           setOpening(false)
         }} />}
       </>
@@ -149,7 +155,7 @@ export function OjtCharts({
       {canSign && onSave && (
         <div className="panel-foot">
           <button type="button" className="text-button" onClick={() => setOpening(true)}>
-            Open another OJT chart
+            Open another chart{course ? ` for ${course.name}` : ''}
           </button>
         </div>
       )}
@@ -157,9 +163,10 @@ export function OjtCharts({
       {opening && onSave && (
         <OpenChart
           employeeName={employeeName}
+          course={course}
           onClose={() => setOpening(false)}
           onSubmit={async payload => {
-            await onSave('create_ojt_chart', payload, 'OJT chart opened.')
+            await onSave('create_ojt_chart', { courseId: course?.id, ...payload }, 'OJT chart opened.')
             setOpening(false)
           }}
         />
@@ -180,7 +187,17 @@ export function OjtCharts({
   )
 }
 
-function OpenChart({ employeeName, onClose, onSubmit }: { employeeName: string; onClose: () => void; onSubmit: (payload: Record<string, unknown>) => Promise<void> }) {
+function OpenChart({
+  employeeName,
+  course,
+  onClose,
+  onSubmit,
+}: {
+  employeeName: string
+  course?: { id: string; name: string }
+  onClose: () => void
+  onSubmit: (payload: Record<string, unknown>) => Promise<void>
+}) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -197,11 +214,11 @@ function OpenChart({ employeeName, onClose, onSubmit }: { employeeName: string; 
   }
 
   return (
-    <Modal title="Open an OJT progress chart" subtitle={employeeName} onClose={onClose}>
+    <Modal title="Open an OJT progress chart" subtitle={course ? `${course.name} · ${employeeName}` : employeeName} onClose={onClose}>
       <form className="form" onSubmit={submit}>
         <label>
           Chart title
-          <input name="title" defaultValue="Aircraft Accident Investigator OJT Progress Chart" required />
+          <input name="title" defaultValue={course ? course.name : 'Aircraft Accident Investigator OJT Progress Chart'} required />
         </label>
         <div className="form-grid">
           <label>

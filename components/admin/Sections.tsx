@@ -1,18 +1,17 @@
 'use client'
 
 import { FormEvent, useMemo, useState } from 'react'
-import { Icon, Modal, ProfessionField, ProgressBar, PersonnelLevelField } from '@/components/ui'
+import { Icon, Modal, ProfessionField, ProgressBar, PersonnelLevelField, SuggestField } from '@/components/ui'
 import { PROGRAMME_BLURB, PROGRAMME_TYPES, type ProgrammeType } from '@/lib/programme'
-import type { CertificateDocument, Course, DirectoryEmployee, TrainingRequest } from '@/lib/types'
+import { DIRECTORATES, directorateLabel } from '@/lib/org'
+import type { Course, DirectoryEmployee, TrainingRequest } from '@/lib/types'
 
 export function Overview({
   employees,
-  documents,
   requests,
   onGo,
 }: {
   employees: DirectoryEmployee[]
-  documents: CertificateDocument[]
   requests: TrainingRequest[]
   onGo: (section: string) => void
 }) {
@@ -23,53 +22,56 @@ export function Overview({
     return { applicable, completed, overdue, percent: applicable ? Math.round((completed / applicable) * 100) : 0 }
   }, [employees])
 
-  const pendingCertificates = documents.filter(document => document.reviewStatus === 'Pending').length
   const pendingRequests = requests.filter(request => request.status === 'Pending').length
 
-  const byDivision = useMemo(() => {
+  // By directorate, not by whatever spelling of a directorate the sheet happened
+  // to carry. The Director General listed five and no others.
+  const byDirectorate = useMemo(() => {
     const groups = new Map<string, DirectoryEmployee[]>()
     for (const employee of employees) {
-      const key = employee.division || 'Unassigned'
+      const key = directorateLabel(employee.division)
       groups.set(key, [...(groups.get(key) || []), employee])
     }
-    return Array.from(groups, ([division, people]) => {
+    return Array.from(groups, ([directorate, people]) => {
       const applicable = people.reduce((sum, person) => sum + person.progress.applicable, 0)
       const completed = people.reduce((sum, person) => sum + person.progress.completed, 0)
       const overdue = people.reduce((sum, person) => sum + person.progress.overdue, 0)
-      return { division, headcount: people.length, overdue, percent: applicable ? Math.round((completed / applicable) * 100) : 0 }
+      return { directorate, headcount: people.length, assigned: applicable, overdue, percent: applicable ? Math.round((completed / applicable) * 100) : 0 }
     }).sort((a, b) => a.percent - b.percent)
   }, [employees])
 
   return (
     <>
       <div className="metrics">
-        <Metric label="Staff on the register" value={String(employees.length)} detail="with an individual development plan" />
+        <Metric label="Investigators on the register" value={String(employees.length)} detail="with an individual development plan" />
         <Metric label="Bureau-wide completion" value={`${totals.percent}%`} detail={`${totals.completed} of ${totals.applicable} applicable courses`} />
         <Metric label="Past deadline" value={String(totals.overdue)} detail="courses needing attention" tone={totals.overdue ? 'alert' : undefined} />
-        <Metric label="Awaiting your action" value={String(pendingCertificates + pendingRequests)} detail={`${pendingCertificates} certificates · ${pendingRequests} requests`} tone={pendingCertificates + pendingRequests ? 'warn' : undefined} />
+        <Metric label="With the Director General" value={String(pendingRequests)} detail="requests awaiting his signature" tone={pendingRequests ? 'warn' : undefined} />
       </div>
 
       <section className="panel">
         <div className="panel-head">
           <div>
             <div className="eyebrow">Coverage</div>
-            <h2>Completion by division</h2>
+            <h2>Completion by directorate</h2>
+            <p className="panel-note">Investigators on the register, the courses assigned to them, and how much of it is done.</p>
           </div>
           <button type="button" className="ghost" onClick={() => onGo('employees')}>
-            Open staff directory
+            Open the register
           </button>
         </div>
         <div className="division-table">
           <div className="division-row division-head">
-            <span>Division</span>
+            <span>Directorate</span>
             <span>Staff</span>
             <span>Completion</span>
             <span>Overdue</span>
           </div>
-          {byDivision.map(row => (
-            <div className="division-row" key={row.division}>
+          {byDirectorate.map(row => (
+            <div className="division-row" key={row.directorate}>
               <span>
-                <strong>{row.division}</strong>
+                <strong>{row.directorate}</strong>
+                <small className="division-note">{row.assigned} courses assigned</small>
               </span>
               <span>{row.headcount}</span>
               <span className="division-progress">
@@ -97,7 +99,9 @@ function Metric({ label, value, detail, tone }: { label: string; value: string; 
 
 export function Catalogue({ courses, readOnly, onCreate }: { courses: Course[]; readOnly: boolean; onCreate: (payload: Record<string, unknown>) => Promise<void> }) {
   const [adding, setAdding] = useState(false)
-  const [open, setOpen] = useState<ProgrammeType[]>(['Initial'])
+  // Closed on arrival: "once you open this page, by default all of them is
+  // closed - you click before you see them."
+  const [open, setOpen] = useState<ProgrammeType[]>([])
 
   const toggle = (type: ProgrammeType) => setOpen(current => (current.includes(type) ? current.filter(item => item !== type) : [...current, type]))
 
@@ -108,7 +112,10 @@ export function Catalogue({ courses, readOnly, onCreate }: { courses: Course[]; 
           <div>
             <div className="eyebrow">Controlled catalogue</div>
             <h2>Courses by programme type</h2>
-            <p className="panel-note">One trusted library of course titles. Every member of staff&rsquo;s plan is built from this list.</p>
+            <p className="panel-note">
+              One trusted library of course titles, in the order the bureau progresses through them. Open a programme type to see every course under it. Every
+              investigator&rsquo;s plan is built from this list.
+            </p>
           </div>
           {!readOnly && (
             <button type="button" className="primary" onClick={() => setAdding(true)}>
@@ -250,11 +257,11 @@ export function AddEmployee({ onClose, onCreate }: { onClose: () => void; onCrea
   }
 
   return (
-    <Modal title="Add a member of staff" subtitle="They start with the full course catalogue on their plan" onClose={onClose} wide>
+    <Modal title="Add an investigator" subtitle="They start with the full course catalogue on their plan" onClose={onClose} wide>
       <form className="form" onSubmit={submit}>
         <div className="form-grid">
           <label>
-            Name of staff
+            Name
             <input name="name" required placeholder="e.g. Engr. Grace Okoro" />
           </label>
           <label>
@@ -271,17 +278,14 @@ export function AddEmployee({ onClose, onCreate }: { onClose: () => void; onCrea
             Licence number
             <input name="license" placeholder="e.g. 2470" />
           </label>
+          <SuggestField name="division" label="Directorate" options={[...DIRECTORATES]} placeholder="Type the directorate" />
           <label>
-            Division
-            <input name="division" placeholder="Technical Investigation" />
+            Unit or section
+            <input name="department" placeholder="e.g. Flight Recorder Unit" />
           </label>
           <label>
-            Department
-            <input name="department" placeholder="Technical Services" />
-          </label>
-          <label>
-            Training profile
-            <input name="trainingProfile" placeholder="Technical" />
+            Specialty
+            <input name="specialty" placeholder="e.g. Powerplant, Flight recorders" />
           </label>
         </div>
         {error && <div className="form-error">{error}</div>}

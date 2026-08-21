@@ -10,7 +10,8 @@ export type Employee = {
   department: string | null
   profession: string | null
   personnelLevel: string | null
-  trainingProfile: string | null
+  /** The Director's correction: a specialty, not a "technical profile". */
+  specialty: string | null
   yearsExperience: number | null
   qualifications: string[]
   license: string | null
@@ -21,7 +22,8 @@ export type Employee = {
 
 export type Progress = { applicable: number; completed: number; overdue: number; outstanding: number; percent: number }
 
-export type DirectoryEmployee = Employee & { progress: Progress }
+/** Seniority band, so the register reads CEO -> directors -> investigators. */
+export type DirectoryEmployee = Employee & { progress: Progress; rank: number }
 
 export type Course = {
   id: string
@@ -101,9 +103,12 @@ export type AnnualPlanItem = {
   trainingDates: string | null
   priority: Priority | null
   trainingType: string | null
+  duration: string | null
   cost: number | null
   currency: string
   delivery: string
+  courseId: string | null
+  assignedRecordId: string | null
   dgStatus: DgDecision
   dgInstitution: string | null
   dgDelivery: string | null
@@ -140,6 +145,8 @@ export type OjtTask = {
 export type OjtChart = {
   id: string
   employeeId: string
+  /** The OJT course this chart is the content of — OJT 1, OJT 2 or OJT 3. */
+  courseId: string | null
   title: string
   gradeLevel: string | null
   supervisor: string | null
@@ -147,6 +154,20 @@ export type OjtChart = {
   createdAt: string
   completedAt: string | null
   tasks: OjtTask[]
+}
+
+/** One school in the bureau's training directory. */
+export type TrainingOrganisation = {
+  id: string
+  serial: number | null
+  name: string
+  website: string | null
+  email: string | null
+  phone: string | null
+  contact: string | null
+  address: string | null
+  courses: string | null
+  notes: string | null
 }
 
 export type Directory = {
@@ -158,6 +179,7 @@ export type Directory = {
   requests: TrainingRequest[]
   annualPlan: AnnualPlanItem[]
   planYears: number[]
+  organisations: TrainingOrganisation[]
 }
 
 export type EmployeePlan = {

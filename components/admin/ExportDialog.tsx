@@ -7,7 +7,7 @@ import type { DirectoryEmployee } from '@/lib/types'
 
 /**
  * Export development plans in the layout of the IDP workbook — the whole
- * register, or one member of staff.
+ * register, or one investigator.
  */
 export function ExportDialog({ employees, onClose, onDone }: { employees: DirectoryEmployee[]; onClose: () => void; onDone: (message: string) => void }) {
   const [scope, setScope] = useState<'all' | 'one'>('all')
@@ -18,7 +18,7 @@ export function ExportDialog({ employees, onClose, onDone }: { employees: Direct
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (scope === 'one' && !employeeId) {
-      setError('Choose a member of staff.')
+      setError('Choose an investigator.')
       return
     }
     setBusy(true)
@@ -44,24 +44,24 @@ export function ExportDialog({ employees, onClose, onDone }: { employees: Direct
         <label className="switch-field">
           <input type="radio" name="scope" checked={scope === 'all'} onChange={() => setScope('all')} />
           <span>
-            <strong>All staff</strong>
-            <small>One plan per member of staff, {employees.length} in total, stacked in one file.</small>
+            <strong>Every investigator</strong>
+            <small>One plan per investigator, {employees.length} in total, stacked in one file.</small>
           </span>
         </label>
 
         <label className="switch-field">
           <input type="radio" name="scope" checked={scope === 'one'} onChange={() => setScope('one')} />
           <span>
-            <strong>One member of staff</strong>
+            <strong>One investigator</strong>
             <small>A single Individual Development Plan.</small>
           </span>
         </label>
 
         {scope === 'one' && (
           <label>
-            Member of staff
+            Investigator
             <select value={employeeId} onChange={event => setEmployeeId(event.target.value)} autoFocus>
-              <option value="">Select staff</option>
+              <option value="">Select an investigator</option>
               {employees.map(employee => (
                 <option key={employee.id} value={employee.id}>
                   {employee.name} — {employee.designation || 'Staff'}
